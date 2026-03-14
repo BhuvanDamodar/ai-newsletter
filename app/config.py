@@ -1,8 +1,10 @@
 import os
+from dotenv import load_dotenv
 
+load_dotenv(override=True)
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://ainews_user:ainews_password@localhost:5432/ainews")
 LLM_API_KEY = os.getenv("LLM_API_KEY")
-LLM_MODEL = os.getenv("LLM_MODEL", "gemini/gemini-1.5-flash")
+LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.5-flash")
 
 SMTP_SERVER = os.getenv("SMTP_SERVER")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
