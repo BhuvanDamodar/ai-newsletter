@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; border-bottom: 2px solid #eaeaea; padding-bottom: 20px; margin-bottom: 20px; }
+        .article { margin-bottom: 30px; padding: 20px; background: #f9f9f9; border-radius: 8px; }
+        .title { margin: 0 0 10px 0; color: #2c3e50; font-size: 20px; }
+        .title a { color: #2980b9; text-decoration: none; }
+        .takeaway { font-weight: bold; font-size: 16px; margin-bottom: 15px; color: #e74c3c; }
+        .bullets { margin-left: 20px; }
+        .tags { margin-top: 15px; font-size: 12px; color: #7f8c8d; }
+        .tag { background: #e0e0e0; padding: 3px 8px; border-radius: 12px; margin-right: 5px; }
+        .footer { text-align: center; font-size: 12px; color: #999; margin-top: 40px; border-top: 1px solid #eaeaea; padding-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Your Daily AI News Digest</h1>
+        <p>Curated specifically for <strong>{{ user.email }}</strong></p>
+    </div>
+
+    {% if articles %}
+        {% for info in articles %}
+        <div class="article">
+            <h2 class="title"><a href="{{ info.url }}" target="_blank">{{ info.title }}</a></h2>
+            
+            {% if info.summary_data %}
+                <div class="takeaway">💡 {{ info.summary_data.key_takeaway }}</div>
+                
+                <ul class="bullets">
+                {% for point in info.summary_data.summary_points %}
+                    <li>{{ point }}</li>
+                {% endfor %}
+                </ul>
+                </ul>
+            {% else %}
+                <p>No summary available.</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    {% else %}
+        <p>No highly relevant news matched your profile today.</p>
+    {% endif %}
+
+    <div class="footer">
+        <p>Sent by your Custom AI News Aggregator System.</p>
+    </div>
+</body>
+</html>
