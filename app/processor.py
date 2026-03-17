@@ -14,10 +14,11 @@ logger = logging.getLogger(__name__)
 
 # ── Pydantic Schema for LLM Output validation ────────────────────────────────
 class ArticleSummary(BaseModel):
-    key_takeaway: str = Field(description="A single sentence explaining the main point of the article.")
-    summary_points: list[str] = Field(description="3 to 5 bullet points summarizing the content.")
-    technical_complexity: int = Field(description="A score from 1 to 5 indicating how technical the article is (1=beginner, 5=highly advanced expert).")
-    tags: list[str] = Field(description="3 to 5 tags or keywords relevant to the content.")
+    is_appropriate_ai_news: bool = Field(description="True if the article is relevant to Artificial Intelligence and does NOT contain vulgar/abusive language. False if it is spam, highly vulgar, or completely unrelated to AI.")
+    key_takeaway: str = Field(description="A single sentence explaining the main point of the article. Empty string if is_appropriate_ai_news is False.")
+    summary_points: list[str] = Field(description="3 to 5 bullet points summarizing the content. Empty list if is_appropriate_ai_news is False.")
+    technical_complexity: int = Field(description="A score from 1 to 5 indicating how technical the article is (1=beginner, 5=highly advanced expert). 0 if is_appropriate_ai_news is False.")
+    tags: list[str] = Field(description="3 to 5 tags or keywords relevant to the content. Empty list if is_appropriate_ai_news is False.")
 
 import time
 
@@ -30,7 +31,13 @@ def generate_summary(text: str) -> str:
     """Passes raw text to Gemini and returns a verified JSON string matching ArticleSummary."""
     
     clipped_text = text[:15000] if text else "No content provided."
-    prompt = f"You are an expert AI researcher summarizing news articles. Provide a concise, highly accurate summary of the following article:\n\n{clipped_text}"
+    prompt = f"""You are an expert AI researcher curating a professional news feed. 
+First, evaluate if the following text is actually related to Artificial Intelligence AND is free of severe vulgarity or abuse. 
+If it is spam, just random reddit venting with no news value, or highly vulgar, set is_appropriate_ai_news to false and leave the rest empty.
+If it is good AI news, provide a concise, highly accurate summary.
+
+Text to analyze:
+{clipped_text}"""
 
     response = client.models.generate_content(
         model=clean_model,

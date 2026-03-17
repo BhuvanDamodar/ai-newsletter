@@ -34,6 +34,11 @@ class ContentCurator:
         
         try:
             summary_data = json.loads(article.summary) if article.summary else {}
+            
+            # If the LLM flagged this article as spam, vulgar, or completely irrelevant, drop it immediately
+            if not summary_data.get("is_appropriate_ai_news", True):
+                return 0
+                
             search_text += " " + summary_data.get("key_takeaway", "").lower()
             tags = [t.lower() for t in summary_data.get("tags", [])]
             search_text += " " + " ".join(tags)
