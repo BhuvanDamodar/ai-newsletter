@@ -19,7 +19,6 @@ RUN uv sync --frozen --no-dev
 
 # Copy the app source code
 COPY ./app /app/app
-COPY main.py .
 
 # Allow Python to output logs without buffering
 ENV PYTHONUNBUFFERED=1
