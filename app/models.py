@@ -9,7 +9,6 @@ class ContentStatus(enum.Enum):
     FAILED = "FAILED"
 
 class ContentSourceType(enum.Enum):
-    YOUTUBE = "YOUTUBE"
     RSS = "RSS"
 
 class User(Base):
@@ -25,7 +24,7 @@ class Source(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     source_type = Column(Enum(ContentSourceType), nullable=False)
-    url_or_id = Column(String, nullable=False) # RSS URL or YouTube Channel ID
+    url_or_id = Column(String, nullable=False) # RSS URL
     is_active = Column(Boolean, default=True)
 
 class Content(Base):
