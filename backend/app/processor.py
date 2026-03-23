@@ -24,9 +24,12 @@ import time
 
 # ── Processing Logic ───────────────────────────────────────────────────────
 
+from tenacity import retry, wait_exponential, stop_after_attempt
+
 client = genai.Client(api_key=LLM_API_KEY)
 clean_model = LLM_MODEL.replace("gemini/", "") if "gemini/" in LLM_MODEL else LLM_MODEL
 
+@retry(wait=wait_exponential(multiplier=1, min=15, max=60), stop=stop_after_attempt(5))
 def generate_summary(text: str) -> str:
     """Passes raw text to Gemini and returns a verified JSON string matching ArticleSummary."""
     

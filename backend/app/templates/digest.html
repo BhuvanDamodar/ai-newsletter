@@ -183,6 +183,10 @@
     <div class="footer">
         <p>Curated specifically for <strong>{{ user.email }}</strong></p>
         <p>Sent by your briefly.ai news system.</p>
+        <p style="margin-top: 12px;">
+            <a href="http://localhost:3000?manage=true&email={{ user.email }}" style="color: #86868b; text-decoration: underline;">Manage Preferences</a> | 
+            <a href="http://localhost:8000/api/unsubscribe?email={{ user.email }}" style="color: #86868b; text-decoration: underline;">Unsubscribe</a>
+        </p>
     </div>
 </body>
 </html>

@@ -73,9 +73,18 @@ class ContentCurator:
 
             user_curation_map = {}
 
+            from app.models import DigestLog
+            
             for user in active_users:
+                # Fetch IDs of articles this user already received
+                sent_logs = db.query(DigestLog.content_id).filter(DigestLog.user_id == user.id).all()
+                sent_ids = {log[0] for log in sent_logs}
+                
                 scored_articles = []
                 for article in recent_articles:
+                    if article.id in sent_ids:
+                        continue # Skip if already sent to this user!
+                        
                     score = self.score_content_for_user(article, user)
                     if score > 0:
                         scored_articles.append((score, article))
