@@ -6,6 +6,7 @@ from typing import List, Optional
 
 from app.database import engine, SessionLocal, Base
 from app.models import User
+from app.email_service import EmailDeliverer
 
 # This will ensure tables are created on startup if they don't exist
 Base.metadata.create_all(bind=engine)
@@ -68,6 +69,14 @@ def subscribe_user(user: UserCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    
+    # Trigger Welcome Email
+    try:
+        deliverer = EmailDeliverer()
+        deliverer.send_welcome_email(new_user.email)
+    except Exception as e:
+        print(f"Failed to send welcome email: {e}")
+        
     return new_user
 
 @app.get("/api/preferences/{email}", response_model=UserResponse)

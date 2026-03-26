@@ -42,19 +42,25 @@ class EmailDeliverer:
             
         return self.template.render(user=user, articles=parsed_articles)
 
-    def send_email(self, to_email: str, html_content: str):
+    def send_welcome_email(self, to_email: str) -> bool:
+        """Renders and sends the Welcome email to new subscribers."""
+        welcome_template = jinja_env.get_template('welcome.html')
+        html_body = welcome_template.render(email=to_email)
+        return self.send_email(to_email, html_body, subject="Welcome to Briefly.ai! ✨")
+
+    def send_email(self, to_email: str, html_content: str, subject: str = "Your Daily AI News Digest"):
         """Sends an HTML email using SMTP configuration."""
         if not SMTP_SERVER or not SMTP_USER:
             logger.warning("SMTP Config missing. Skipping actual email send. Printing to console instead.")
             print("\n" + "="*50)
-            print(f"MOCK EMAIL SENT TO: {to_email}")
+            print(f"MOCK EMAIL SENT TO: {to_email} | SUBJECT: {subject}")
             print("="*50 + "\n")
             # print(html_content) # Uncomment to see HTML body
             return True
             
         try:
             msg = MIMEMultipart('alternative')
-            msg['Subject'] = "Your Daily AI News Digest"
+            msg['Subject'] = subject
             msg['From'] = FROM_EMAIL
             msg['To'] = to_email
 
