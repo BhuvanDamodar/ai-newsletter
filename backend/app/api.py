@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -7,6 +7,7 @@ from typing import List, Optional
 from app.database import engine, SessionLocal, Base
 from app.models import User
 from app.email_service import EmailDeliverer
+from app.main import pipeline_job
 
 # This will ensure tables are created on startup if they don't exist
 Base.metadata.create_all(bind=engine)
@@ -48,6 +49,12 @@ class UserResponse(BaseModel):
 @app.get("/")
 def read_root():
     return {"status": "ok", "message": "AI News API running"}
+
+@app.get("/api/cron/trigger")
+def trigger_pipeline(background_tasks: BackgroundTasks):
+    """Hits this endpoint at 7am via cron-job.org to start the pipeline."""
+    background_tasks.add_task(pipeline_job)
+    return {"status": "started", "message": "Pipeline triggered in background."}
 
 @app.post("/api/subscribe", response_model=UserResponse)
 def subscribe_user(user: UserCreate, db: Session = Depends(get_db)):

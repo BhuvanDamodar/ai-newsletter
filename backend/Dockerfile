@@ -19,10 +19,8 @@ RUN uv sync --frozen --no-dev
 
 # Copy the app source code
 COPY ./app /app/app
-COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
 
 # Allow Python to output logs without buffering
 ENV PYTHONUNBUFFERED=1
 
-CMD ["/app/start.sh"]
+CMD ["sh", "-c", "uv run uvicorn app.api:app --host 0.0.0.0 --port ${PORT:-8000}"]
