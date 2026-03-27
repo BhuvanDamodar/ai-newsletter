@@ -17,7 +17,7 @@ app = FastAPI(title="AI News API", version="1.0.0")
 # Setup CORS to allow Next.js local development frontend to communicate
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
