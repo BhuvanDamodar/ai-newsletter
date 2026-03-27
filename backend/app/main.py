@@ -1,6 +1,6 @@
 import logging
 import time
-# from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 from app.database import Base, engine
 
 # Import our pipeline scripts
@@ -46,29 +46,29 @@ if __name__ == "__main__":
     setup_db()
     
     # ── RUN IMMEDIATELY ON STARTUP FOR TESTING ──
-    logger.info("Triggering pipeline immediately for testing purposes...")
-    pipeline_job()
+    # logger.info("Triggering pipeline immediately for testing purposes...")
+    # pipeline_job()
     
-    # scheduler = BackgroundScheduler()
+    scheduler = BackgroundScheduler()
     
-    # # Schedule the master pipeline to run every morning at 7:00 AM
-    # # (Using Cron style timing)
-    # scheduler.add_job(
-    #     pipeline_job, 
-    #     trigger='cron', 
-    #     hour=7, 
-    #     minute=0, 
-    #     id='daily_pipeline'
-    # )
+    # Schedule the master pipeline to run every morning at 7:00 AM
+    # (Using Cron style timing)
+    scheduler.add_job(
+        pipeline_job, 
+        trigger='cron', 
+        hour=7, 
+        minute=0, 
+        id='daily_pipeline'
+    )
     
-    # scheduler.start()
+    scheduler.start()
     
-    # logger.info("Scheduler started successfully. System will run every day at 7:00 AM.")
+    logger.info("Scheduler started successfully. System will run every day at 7:00 AM.")
     
-    # try:
-    #     # Keep the main thread alive so the background scheduler can run
-    #     while True:
-    #         time.sleep(60)
-    # except (KeyboardInterrupt, SystemExit):
-    #     logger.info("Shutting down worker daemon.")
-    #     scheduler.shutdown()
+    try:
+        # Keep the main thread alive so the background scheduler can run
+        while True:
+            time.sleep(60)
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Shutting down worker daemon.")
+        scheduler.shutdown()
