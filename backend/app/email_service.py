@@ -1,15 +1,18 @@
 import os
 import json
 import logging
-import smtplib
+import base64
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from jinja2 import Environment, FileSystemLoader
 
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+
 from app.database import SessionLocal
 from app.models import DigestLog, User, Content
 from app.curator import ContentCurator
-from app.config import SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, FROM_EMAIL
+from app.config import FROM_EMAIL, GMAIL_TOKEN_B64
 
 logger = logging.getLogger(__name__)
 
@@ -49,35 +52,44 @@ class EmailDeliverer:
         return self.send_email(to_email, html_body, subject="Welcome to Briefly.ai! ✨")
 
     def send_email(self, to_email: str, html_content: str, subject: str = "Your Daily AI News Digest"):
-        """Sends an HTML email using SMTP configuration."""
-        if not SMTP_SERVER or not SMTP_USER:
-            logger.warning("SMTP Config missing. Skipping actual email send. Printing to console instead.")
-            print("\n" + "="*50)
-            print(f"MOCK EMAIL SENT TO: {to_email} | SUBJECT: {subject}")
-            print("="*50 + "\n")
-            # print(html_content) # Uncomment to see HTML body
-            return True
-            
-        try:
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = subject
-            msg['From'] = FROM_EMAIL
-            msg['To'] = to_email
+        """Sends an HTML email using the official Gmail API (Bypasses all cloud firewalls)"""
+        
+        if GMAIL_TOKEN_B64:
+            try:
+                # 1. Decode the Base64 token safely back into JSON string, then dictionary
+                token_json_str = base64.b64decode(GMAIL_TOKEN_B64).decode('utf-8')
+                creds_info = json.loads(token_json_str)
+                creds = Credentials.from_authorized_user_info(creds_info)
+                
+                # 2. Build the Gmail API Service
+                service = build('gmail', 'v1', credentials=creds)
+                
+                # 3. Construct the MIME message
+                message = MIMEMultipart('alternative')
+                message['To'] = to_email
+                message['From'] = FROM_EMAIL # Best practice to match the authenticated user
+                message['Subject'] = subject
+                message.attach(MIMEText(html_content, 'html'))
+                
+                # 4. Gmail API requires a base64url encoded string
+                raw_string = base64.urlsafe_b64encode(message.as_bytes()).decode()
+                message_body = {'raw': raw_string}
+                
+                # 5. Send it using the magical HTTP API!
+                service.users().messages().send(userId='me', body=message_body).execute()
+                logger.info(f"Successfully emailed digest to {to_email} via native Gmail API")
+                return True
+                
+            except Exception as e:
+                logger.error(f"Gmail API Delivery Failed for {to_email}: {e}")
+                return False
 
-            part = MIMEText(html_content, 'html')
-            msg.attach(part)
-
-            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(FROM_EMAIL, to_email, msg.as_string())
-            server.quit()
-            logger.info(f"Successfully emailed digest to {to_email}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to send email to {to_email}: {e}")
-            return False
+        # Fallback for local testing if no token provided
+        logger.warning("GMAIL_TOKEN_B64 missing. Printing mock email to console instead.")
+        print("\n" + "="*50)
+        print(f"MOCK EMAIL SENT TO: {to_email} | SUBJECT: {subject}")
+        print("="*50 + "\n")
+        return True
 
 def deliver_daily_digests():
     """Main function that curates content and sends out all emails."""

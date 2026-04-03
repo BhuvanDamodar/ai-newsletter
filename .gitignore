@@ -41,8 +41,16 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
-# Frontend Additional
+# Frontend 
 frontend/next-env.d.ts
 frontend/coverage/
 *.pem
 .pnpm-debug.log*
+
+# Backend
+backend/token.json
+backend/credentials.json
+
+
+implementation*
+road*

@@ -57,7 +57,7 @@ def trigger_pipeline(background_tasks: BackgroundTasks):
     return {"status": "started", "message": "Pipeline triggered in background."}
 
 @app.post("/api/subscribe", response_model=UserResponse)
-def subscribe_user(user: UserCreate, db: Session = Depends(get_db)):
+def subscribe_user(user: UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     # Check if user already exists
     existing_user = db.query(User).filter(User.email == user.email).first()
     if existing_user:
@@ -77,12 +77,15 @@ def subscribe_user(user: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     
-    # Trigger Welcome Email
-    try:
-        deliverer = EmailDeliverer()
-        deliverer.send_welcome_email(new_user.email)
-    except Exception as e:
-        print(f"Failed to send welcome email: {e}")
+    # Trigger Welcome Email in the background to prevent blocking the UI
+    def send_welcome(email):
+        try:
+            deliverer = EmailDeliverer()
+            deliverer.send_welcome_email(email)
+        except Exception as e:
+            print(f"Failed to send welcome email to {email}: {e}")
+            
+    background_tasks.add_task(send_welcome, new_user.email)
         
     return new_user
 
