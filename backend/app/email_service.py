@@ -12,7 +12,7 @@ from googleapiclient.discovery import build
 from app.database import SessionLocal
 from app.models import DigestLog, User, Content
 from app.curator import ContentCurator
-from app.config import FROM_EMAIL, GMAIL_TOKEN_B64
+from app.config import FROM_EMAIL, GMAIL_TOKEN_B64, FRONTEND_URL, API_URL
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +43,12 @@ class EmailDeliverer:
                 "summary_data": summary_data
             })
             
-        return self.template.render(user=user, articles=parsed_articles)
+        return self.template.render(user=user, articles=parsed_articles, frontend_url=FRONTEND_URL, api_url=API_URL)
 
     def send_welcome_email(self, to_email: str) -> bool:
         """Renders and sends the Welcome email to new subscribers."""
         welcome_template = jinja_env.get_template('welcome.html')
-        html_body = welcome_template.render(email=to_email)
+        html_body = welcome_template.render(email=to_email, frontend_url=FRONTEND_URL, api_url=API_URL)
         return self.send_email(to_email, html_body, subject="Welcome to Briefly.ai! ✨")
 
     def send_email(self, to_email: str, html_content: str, subject: str = "Your Daily AI News Digest"):
