@@ -8,3 +8,6 @@ LLM_MODEL = os.getenv("LLM_MODEL")
 
 FROM_EMAIL = os.getenv("FROM_EMAIL")
 GMAIL_TOKEN_B64 = os.getenv("GMAIL_TOKEN_B64")
+
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+API_URL = os.getenv("API_URL", "http://localhost:8000")
