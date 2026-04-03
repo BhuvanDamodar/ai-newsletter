@@ -17,15 +17,13 @@ services:
 
   worker:
     build: ./backend
+    command: ["uv", "run", "python", "-m", "app.main"]
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - LLM_API_KEY=${LLM_API_KEY}
       - LLM_MODEL=${LLM_MODEL}
-      - SMTP_SERVER=${SMTP_SERVER}
-      - SMTP_PORT=${SMTP_PORT}
-      - SMTP_USER=${SMTP_USER}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
       - FROM_EMAIL=${FROM_EMAIL}
+      - GMAIL_TOKEN_B64=${GMAIL_TOKEN_B64}
     depends_on:
       db:
         condition: service_healthy
@@ -39,11 +37,10 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      - SMTP_SERVER=${SMTP_SERVER}
-      - SMTP_PORT=${SMTP_PORT}
-      - SMTP_USER=${SMTP_USER}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_MODEL=${LLM_MODEL}
       - FROM_EMAIL=${FROM_EMAIL}
+      - GMAIL_TOKEN_B64=${GMAIL_TOKEN_B64}
     depends_on:
       db:
         condition: service_healthy
