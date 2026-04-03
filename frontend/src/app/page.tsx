@@ -73,17 +73,17 @@ export default function Home() {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="text-center mb-12"
+          className="text-center mb-12 mt-20 md:mt-0"
         >
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass mb-6">
             <Sparkles className="w-5 h-5 text-brand-400" />
             <span className="text-sm font-medium text-brand-100">AI-Curated Daily Insight</span>
           </div>
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-tight">
+          <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold tracking-tight mb-4 md:mb-6 leading-tight">
             Stay Ahead of the <br />
             <span className="text-gradient">AI Revolution</span>
           </h1>
-          <p className="text-xl text-text-muted max-w-2xl mx-auto">
+          <p className="text-lg sm:text-xl text-text-muted max-w-2xl mx-auto px-4 md:px-0">
             Get a personalized, intelligent daily digest of the most important AI news, filtered exactly to your professional interests.
           </p>
         </motion.div>
@@ -119,7 +119,7 @@ export default function Home() {
                 <label className="block text-sm font-medium text-brand-100">
                   Select Your Interests
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2">
                   {topics.map(topic => {
                     const Icon = topic.icon;
                     const isSelected = preferences.includes(topic.id);
@@ -128,14 +128,14 @@ export default function Home() {
                         key={topic.id}
                         type="button"
                         onClick={() => handleTogglePreference(topic.id)}
-                        className={`flex items-center gap-3 p-4 rounded-xl transition-all border outline-none ${
+                        className={`flex items-center gap-3 p-3.5 sm:p-4 rounded-xl transition-all border outline-none min-w-0 ${
                           isSelected 
                             ? "bg-brand-500/20 border-brand-500 text-white" 
                             : "bg-white/5 border-white/10 text-text-muted hover:bg-white/10"
                         }`}
                       >
-                        <Icon className={`w-5 h-5 ${isSelected ? "text-brand-400" : ""}`} />
-                        <span className="font-medium">{topic.label}</span>
+                        <Icon className={`w-5 h-5 shrink-0 ${isSelected ? "text-brand-400" : ""}`} />
+                        <span className="font-medium text-left text-sm sm:text-base break-words leading-tight">{topic.label}</span>
                       </button>
                     )
                   })}
@@ -146,21 +146,23 @@ export default function Home() {
                 <label htmlFor="email" className="block text-sm font-medium text-brand-100">
                   Email Address
                 </label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
-                  <input 
-                    id="email"
-                    type="email" 
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="hello@example.com"
-                    className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/10 rounded-xl outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all placeholder:text-text-muted/50"
-                  />
+                <div className="relative flex flex-col sm:block gap-3">
+                  <div className="relative w-full">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
+                    <input 
+                      id="email"
+                      type="email" 
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="hello@example.com"
+                      className="w-full pl-11 pr-4 sm:pr-36 py-3.5 sm:py-4 bg-white/5 border border-white/10 rounded-xl outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all placeholder:text-text-muted/50"
+                    />
+                  </div>
                   <button 
                     disabled={status === "loading" || !email}
                     type="submit"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 px-6 py-2.5 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:hover:bg-brand-600 rounded-lg font-medium transition-colors flex items-center gap-2"
+                    className="sm:absolute sm:right-2 sm:top-1/2 sm:-translate-y-1/2 w-full sm:w-auto px-6 py-3.5 sm:py-2.5 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:hover:bg-brand-600 rounded-xl sm:rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                   >
                     {status === "loading" && <Loader2 className="w-4 h-4 animate-spin" />}
                     Subscribe
