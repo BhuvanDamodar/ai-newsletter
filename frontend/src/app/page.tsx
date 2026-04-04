@@ -33,23 +33,44 @@ export default function Home() {
     e.preventDefault();
     if (!email) return;
 
-    setStatus("loading");
+    // Optimistically update the UI immediately for a snappy user experience
+    setStatus("success");
     setErrorMessage("");
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const res = await fetch(`${apiUrl}/api/subscribe`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, preferences }),
-      });
-
-      if (!res.ok) throw new Error("Failed to subscribe. Please try again.");
       
-      setStatus("success");
+      // Background retry loop to handle Render's initial cold-start 503 proxy errors
+      const fireAndForgetSubscribe = async () => {
+        let retries = 3;
+        while (retries > 0) {
+          try {
+            const res = await fetch(`${apiUrl}/api/subscribe`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email, preferences }),
+              keepalive: true
+            });
+            if (res.ok) {
+              break; // Success!
+            }
+          } catch (err) {
+            // Network or parsing error, wait and retry
+          }
+          retries--;
+          if (retries > 0) {
+            await new Promise(r => setTimeout(r, 5000)); // wait 5 seconds
+          }
+        }
+      };
+      
+      // Execute without awaiting so the UI updates immediately
+      fireAndForgetSubscribe().catch((err) => {
+        console.error("Background subscription error:", err);
+      });
+      
     } catch (err: any) {
-      setStatus("error");
-      setErrorMessage(err.message || "An unexpected error occurred.");
+      console.error(err);
     }
   };
 
