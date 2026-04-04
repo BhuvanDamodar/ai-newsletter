@@ -39,13 +39,33 @@ export default function Home() {
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      // Fire-and-forget the API request in the background, with keepalive so it completes even if the tab closes
-      fetch(`${apiUrl}/api/subscribe`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, preferences }),
-        keepalive: true
-      }).catch((err) => {
+      
+      // Background retry loop to handle Render's initial cold-start 503 proxy errors
+      const fireAndForgetSubscribe = async () => {
+        let retries = 3;
+        while (retries > 0) {
+          try {
+            const res = await fetch(`${apiUrl}/api/subscribe`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email, preferences }),
+              keepalive: true
+            });
+            if (res.ok) {
+              break; // Success!
+            }
+          } catch (err) {
+            // Network or parsing error, wait and retry
+          }
+          retries--;
+          if (retries > 0) {
+            await new Promise(r => setTimeout(r, 5000)); // wait 5 seconds
+          }
+        }
+      };
+      
+      // Execute without awaiting so the UI updates immediately
+      fireAndForgetSubscribe().catch((err) => {
         console.error("Background subscription error:", err);
       });
       
