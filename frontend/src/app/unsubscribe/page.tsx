@@ -12,24 +12,20 @@ function UnsubscribeContent() {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
 
-  const handleUnsubscribe = async () => {
+  const handleUnsubscribe = () => {
     if (!email) return;
-    setStatus("loading");
     
+    // Instantly show success so the user doesn't have to wait for Render to wake up
+    setStatus("success");
+    
+    // Fire the API request in the background
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const res = await fetch(`${apiUrl}/api/unsubscribe?email=${encodeURIComponent(email)}`);
-      const data = await res.json();
-      
-      if (!res.ok || data.status === "error") {
-        setStatus("error");
-        setMessage(data.message || "Failed to unsubscribe. You may have already unsubscribed.");
-      } else {
-        setStatus("success");
-      }
+      fetch(`${apiUrl}/api/unsubscribe?email=${encodeURIComponent(email)}`).catch(err => {
+        console.error("Background unsubscribe failed:", err);
+      });
     } catch (err) {
-      setStatus("error");
-      setMessage("An unexpected error occurred. Please try again.");
+      console.error("Failed to initiate unsubscribe:", err);
     }
   };
 
