@@ -33,23 +33,24 @@ export default function Home() {
     e.preventDefault();
     if (!email) return;
 
-    setStatus("loading");
+    // Optimistically update the UI immediately for a snappy user experience
+    setStatus("success");
     setErrorMessage("");
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const res = await fetch(`${apiUrl}/api/subscribe`, {
+      // Fire-and-forget the API request in the background, with keepalive so it completes even if the tab closes
+      fetch(`${apiUrl}/api/subscribe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, preferences }),
+        keepalive: true
+      }).catch((err) => {
+        console.error("Background subscription error:", err);
       });
-
-      if (!res.ok) throw new Error("Failed to subscribe. Please try again.");
       
-      setStatus("success");
     } catch (err: any) {
-      setStatus("error");
-      setErrorMessage(err.message || "An unexpected error occurred.");
+      console.error(err);
     }
   };
 
