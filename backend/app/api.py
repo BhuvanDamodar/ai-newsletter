@@ -1,4 +1,7 @@
+import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks
+from tenacity import retry, wait_fixed, stop_after_attempt
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -9,10 +12,24 @@ from app.models import User
 from app.email_service import EmailDeliverer
 from app.main import pipeline_job
 
-# This will ensure tables are created on startup if they don't exist
-Base.metadata.create_all(bind=engine)
+logger = logging.getLogger(__name__)
 
-app = FastAPI(title="AI News API", version="1.0.0")
+@retry(wait=wait_fixed(2), stop=stop_after_attempt(5))
+def init_db():
+    logger.info("Ensuring database tables are created...")
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database initialization successful.")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Handle Neon cold starts with retries
+    try:
+        init_db()
+    except Exception as e:
+        logger.error(f"Could not connect to the database on startup: {e}")
+    yield
+
+app = FastAPI(title="AI News API", version="1.0.0", lifespan=lifespan)
 
 # Setup CORS to allow Next.js local development frontend to communicate
 app.add_middleware(

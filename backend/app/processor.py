@@ -97,8 +97,8 @@ def process_pending_articles(limit: int = 10):
             article.status = ContentStatus.FAILED
             db.commit()
             
-        # Add a sleep of 15 seconds between requests to avoid the 5 RPM free tier rate limit
-        time.sleep(15)
+        # Add a sleep of 5 seconds between requests (12 RPM) to stay under the 15 RPM free tier limit
+        time.sleep(5)
 
     db.close()
     logger.info("Processing batch complete.")
