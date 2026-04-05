@@ -31,7 +31,7 @@ def pipeline_job():
         
         # Step 2: Read Text and Summarize via LLM
         logger.info("--- Step 2: Processing ---")
-        process_pending_articles(limit=50) # Setting a high limit so it catches everything from today
+        process_pending_articles(limit=35) # Reduced from 50 to 35 to guarantee we don't exceed Render's 15min timeout
         
         # Step 3: Rank by User Profile and Send Emails
         logger.info("--- Step 3: Delivery ---")
