@@ -22,11 +22,17 @@ def init_db():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Handle Neon cold starts with retries
-    try:
-        init_db()
-    except Exception as e:
-        logger.error(f"Could not connect to the database on startup: {e}")
+    import asyncio
+    
+    # Run DB init in the background without blocking FastAPI startup
+    def background_db_init():
+        try:
+            init_db()
+        except Exception as e:
+            logger.error(f"Could not connect to the database on background startup: {e}")
+            
+    # Launch in a separate thread so it doesn't block the async event loop
+    asyncio.create_task(asyncio.to_thread(background_db_init))
     yield
 
 app = FastAPI(title="AI News API", version="1.0.0", lifespan=lifespan)
