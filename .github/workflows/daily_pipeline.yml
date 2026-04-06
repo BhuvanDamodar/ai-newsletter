@@ -1,0 +1,22 @@
+name: Daily AI News Pipeline
+
+on:
+  schedule:
+    # Runs at 5:00 AM UTC (7:00 AM European Time)
+    - cron: '0 5 * * *'
+  workflow_dispatch: # Allows you to run it manually from GitHub anytime
+
+jobs:
+  trigger-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake up Render Server
+        run: |
+          curl -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" https://ai-newsletter-ejym.onrender.com/ || true
+          
+      - name: Wait for server to fully boot
+        run: sleep 120
+        
+      - name: Trigger the Pipeline Request
+        run: |
+          curl -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" https://ai-newsletter-ejym.onrender.com/api/cron/trigger
