@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, ForeignKey, Enum, Boolean
 from sqlalchemy.sql import func
+from pgvector.sqlalchemy import Vector
 import enum
 from app.database import Base
 
@@ -39,6 +40,7 @@ class Content(Base):
     raw_content = Column(Text, nullable=True) # HTML or JSON transcript
     markdown_content = Column(Text, nullable=True) # Cleaned markdown
     summary = Column(Text, nullable=True) # LLM generated summary
+    embedding = Column(Vector(3072), nullable=True) # Gemini embedding vector for RAG (gemini-embedding-001 = 3072 dims)
     
     status = Column(Enum(ContentStatus), default=ContentStatus.PENDING_PROCESSING)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

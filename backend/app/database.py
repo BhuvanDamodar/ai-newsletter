@@ -1,7 +1,10 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
 from app.config import DATABASE_URL
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Recommended settings for serverless environments like Neon
 engine = create_engine(
@@ -14,6 +17,16 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
+def init_extensions():
+    """Enable required PostgreSQL extensions (pgvector)."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            conn.commit()
+        logger.info("PostgreSQL 'vector' extension enabled.")
+    except Exception as e:
+        logger.warning(f"Could not enable vector extension (may already exist): {e}")
 
 def get_db():
     db = SessionLocal()

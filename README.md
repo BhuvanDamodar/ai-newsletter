@@ -5,7 +5,7 @@
 <h1 align="center">Briefly.ai</h1>
 
 <p align="center">
-  <strong>An AI-powered news curation pipeline that delivers personalized daily digests straight to your inbox.</strong>
+  <strong>An automated AI news intelligence platform with personalized daily digests, an interactive discovery dashboard, and conversational RAG search.</strong>
 </p>
 
 <p align="center">
@@ -13,47 +13,60 @@
   <a href="#features">Features</a> •
   <a href="#tech-stack">Tech Stack</a> •
   <a href="#getting-started">Getting Started</a> •
-  <a href="#deployment">Deployment</a> •
-  <a href="#api-reference">API Reference</a>
+  <a href="#api-reference">API Reference</a> •
+  <a href="#deployment">Deployment</a>
 </p>
 
 ---
 
 ## Overview
 
-Briefly.ai is a full-stack application that automatically scrapes AI news from 8+ curated sources, summarizes each article using Google Gemini, scores content against individual user preferences, and delivers a beautifully formatted HTML email digest every morning - completely hands-free.
+Briefly.ai is a full-stack Generative AI application that automatically ingests news from 8+ curated AI sources, summarizes and analyzes each article with Google Gemini, scores content against user preferences, generates high-dimensional vector embeddings in PostgreSQL (`pgvector`), and serves both personalized daily digests and an interactive web platform.
 
-Users subscribe through a sleek Next.js landing page, select their interests (LLMs, AI Ethics, Hardware, etc.), and receive a daily email containing only the articles most relevant to them.
+Users can:
+1. **Subscribe to Daily Digests** — Receive a personalized email digest every morning tailored to their interests (LLMs, AI Ethics, Hardware, Startups, etc.).
+2. **Explore the News Dashboard** (`/dashboard`) — Browse, search, and filter all curated AI news by source, topic tags, date range, and technical complexity.
+3. **Chat with Your News** (`/chat`) — Query the article archive using Retrieval-Augmented Generation (RAG). Gemini answers questions grounded strictly in retrieved news articles, citing sources with direct links.
 
-> **Live:** The landing page is at [`briefly-ai-newsletter.vercel.app`](https://briefly-ai-newsletter.vercel.app/), the backend API runs at [`ai-newsletter-ejym.onrender.com`](https://ai-newsletter-ejym.onrender.com), and the daily pipeline is triggered automatically via GitHub Actions every morning at 7:00 AM CET.
+> **Live Deployments:**
+> - **Frontend (Vercel):** [`briefly-ai-newsletter.vercel.app`](https://briefly-ai-newsletter.vercel.app/)
+> - **Backend API (Render):** [`ai-newsletter-ejym.onrender.com`](https://ai-newsletter-ejym.onrender.com)
+> - **Database (Neon):** Serverless PostgreSQL 17 with `pgvector`
+> - **Automation (GitHub Actions):** Daily trigger at 5:00 AM UTC (7:00 AM CET)
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        PRODUCTION FLOW                              │
-│                                                                     │
-│  ┌──────────────┐   5:00 AM UTC    ┌─────────────────────────────┐  │
-│  │ GitHub       │   (7:00 AM CET)  │   FastAPI (Render)          │  │
-│  │ Actions      │ ──────────────►  │                             │  │
-│  │ (Cron)       │  /api/cron/trigger│                             │  │
-│  └──────────────┘                  │  ┌───────────────────────┐  │  │
-│                                     │  │   Pipeline (BGTask)   │  │  │
-│                                     │  │                       │  │  │
-│                                     │  │  1. Scrape  ─► RSS ×8 │  │  │
-│                                     │  │  2. Process ─► Gemini │  │  │
-│                                     │  │  3. Curate  ─► Score  │  │  │
-│                                     │  │  4. Deliver ─► Gmail  │  │  │
-│                                     │  └───────────────────────┘  │  │
-│                                     └──────────┬──────────────────┘  │
-│                                                │                     │
-│  ┌──────────────┐                    ┌─────────▼─────────┐          │
-│  │ Next.js      │◄── Subscribe ────► │   Neon PostgreSQL  │          │
-│  │ (Vercel)     │    /api/subscribe  │   (Cloud DB)       │          │
-│  └──────────────┘                    └───────────────────┘          │
-└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              SYSTEM ARCHITECTURE                            │
+│                                                                             │
+│   ┌──────────────┐    5:00 AM UTC      ┌─────────────────────────────────┐  │
+│   │ GitHub       │    (7:00 AM CET)    │   FastAPI Backend (Render)      │  │
+│   │ Actions      │ ──────────────────► │                                 │  │
+│   │ (Cron)       │  /api/cron/trigger  │  ┌───────────────────────────┐  │  │
+│   └──────────────┘                     │  │     Pipeline (BG Task)    │  │  │
+│                                        │  │                           │  │  │
+│                                        │  │ 1. Scrape   ─► RSS ×8     │  │  │
+│                                        │  │ 2. Process  ─► Gemini 2.5 │  │  │
+│                                        │  │ 2.5. Embed  ─► pgvector   │  │  │
+│                                        │  │ 3. Curate   ─► Score      │  │  │
+│                                        │  │ 4. Deliver  ─► Gmail API  │  │  │
+│                                        │  └─────────────┬─────────────┘  │  │
+│                                        │                │                │  │
+│                                        │  ┌─────────────▼─────────────┐  │  │
+│   ┌──────────────┐                     │  │    RAG Engine (rag.py)    │  │  │
+│   │ Next.js      │ ◄── Search/Chat ──► │  │    Query Embed ─► Cosine  │  │  │
+│   │ App Router   │     /api/articles   │  │    Search ─► Grounded Gen │  │  │
+│   │ (Vercel)     │     /api/chat       │  └─────────────┬─────────────┘  │  │
+│   └──────────────┘                     └────────────────┼────────────────┘  │
+│                                                         │                   │
+│                                              ┌──────────▼──────────┐        │
+│                                              │   Neon PostgreSQL   │        │
+│                                              │   + pgvector (3072) │        │
+│                                              └─────────────────────┘        │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Pipeline Stages
@@ -61,61 +74,73 @@ Users subscribe through a sleek Next.js landing page, select their interests (LL
 | Stage | Module | Description |
 |-------|--------|-------------|
 | **1. Scrape** | `scraper/orchestrator.py` | Seeds default sources on first run, then dispatches the RSS scraper module. |
-| **2. Parse** | `scraper/rss_scraper.py` | Fetches RSS feeds from 8 sources, filters to the last 24 hours, deduplicates by GUID, and stores raw content. |
-| **3. Process** | `processor.py` | Sends each article to **Google Gemini** with a structured Pydantic schema. Returns key takeaway, bullet summary, tags, technical complexity score, and a content-appropriateness flag to filter spam/vulgarity. Uses `tenacity` for automatic retry with exponential backoff on rate limits. |
-| **4. Curate** | `curator.py` | Scores every processed article against each user's preference keywords. Deduplicates against `DigestLog` so users never see the same article twice. Returns the top 5 articles per user, ranked by relevance. |
-| **5. Deliver** | `email_service.py` | Renders a personalized HTML email using Jinja2 templates (`digest.html`), then sends it via the **Gmail REST API** (OAuth2 credentials encoded as base64). Also handles welcome emails for new subscribers. |
+| **2. Parse** | `scraper/rss_scraper.py` | Fetches RSS feeds from 8 sources, deduplicates by GUID, and inserts new articles as `PENDING_PROCESSING`. |
+| **3. Summarize** | `processor.py` | Evaluates articles via **Google Gemini 2.5 Flash** with a Pydantic schema (`ArticleSummary`). Generates single-sentence key takeaway, bullet points, tags, complexity score (1–5), and an appropriateness filter. Uses `tenacity` exponential backoff for rate limits. |
+| **3.5. Embed** | `embedder.py` | Combines `title \| takeaway \| points \| tags` into semantic text, generates **3072-dimensional dense vectors** with `gemini-embedding-001`, and stores them in PostgreSQL via `pgvector`. Employs a 48-hour rolling window to avoid re-embedding historical records. |
+| **4. Curate** | `curator.py` | Scores processed articles against user preference keywords. Checks `DigestLog` to ensure cross-day deduplication (no user receives the same article twice). Picks top 5 articles per user. |
+| **5. Deliver** | `email_service.py` | Renders personalized HTML digests using Jinja2 templates (`digest.html`), delivering via **Gmail REST API** with base64 OAuth2 refresh tokens. Also handles welcome emails. |
+| **6. RAG Engine** | `rag.py` | Embeds user queries, executes vector cosine distance search (`<=>`) against embedded articles, formats retrieved context, and prompts Gemini to produce grounded answers citing `[Article N]`. |
 
 ### Data Model
 
 ```
-┌──────────┐       ┌───────────┐       ┌────────────┐
-│  Source   │ 1───* │  Content   │ *───* │ DigestLog  │
-│  ──────   │       │  ───────   │       │ ─────────  │
-│  name     │       │  title     │       │ user_id    │
-│  url_or_id│       │  summary   │       │ content_id │
-│  type:RSS │       │  status    │       │ sent_at    │
-└──────────┘       │  raw_content│       └────────────┘
-                    │  published_at│              │
-                    └───────────┘          ┌─────┴──────┐
-                                           │   User     │
-                                           │   ────     │
-                                           │   email    │
-                                           │ preferences│
-                                           │  is_active │
-                                           └────────────┘
+┌──────────┐       ┌────────────────────────┐       ┌────────────┐
+│  Source   │ 1───* │        Content         │ *───* │ DigestLog  │
+│  ──────   │       │        ───────         │       │ ─────────  │
+│  name     │       │  title                 │       │ user_id    │
+│  url_or_id│       │  summary (JSON)        │       │ content_id │
+│  type:RSS │       │  status                │       │ sent_at    │
+│  is_active│       │  raw_content           │       └────────────┘
+└──────────┘       │  published_at          │              │
+                    │  embedding (vector:3072│       ┌──────┴─────┐
+                    └────────────────────────┘       │    User    │
+                                                     │    ────    │
+                                                     │ email      │
+                                                     │ preferences│
+                                                     │ is_active  │
+                                                     └────────────┘
 ```
 
 ---
 
 ## Features
 
-- **8 Built-in RSS Sources** - TechCrunch AI, OpenAI Blog, Anthropic News, Reddit r/Artificial, Reddit r/MachineLearning, Google DeepMind, Hugging Face, MIT Technology Review
-- **LLM-Powered Summaries** - Structured JSON output validated by Pydantic (key takeaway, bullet points, tags, complexity score)
-- **Content Moderation** - Gemini flags spam, vulgarity, and off-topic posts, which are automatically excluded from digests
-- **Personalized Curation** - Keyword-based relevance scoring with deduplication across days
-- **Gmail REST API Delivery** - Bypasses cloud provider SMTP firewalls using native OAuth2 token authentication
-- **Automated Scheduling** - GitHub Actions triggers the pipeline daily; APScheduler available for local development
-- **Welcome Emails** - New subscribers receive a styled welcome email upon signup
-- **Unsubscribe Support** - One-click unsubscribe link in every email footer with a dedicated unsubscribe page
-- **Glassmorphism UI** - Premium dark-mode landing page with Framer Motion animations
-- **Render Cold-Start Handling** - GitHub Actions workflow wakes the free-tier server before triggering the pipeline
+### Core Intelligence & Pipeline (Phases 1 & 2)
+- **8 Curated RSS Sources** — TechCrunch AI, OpenAI Blog, Anthropic News, Reddit r/Artificial, Reddit r/MachineLearning, Google DeepMind, Hugging Face Blog, MIT Technology Review.
+- **LLM-Powered Summaries** — Structured JSON output verified by Pydantic (key takeaway, bullet points, tags, complexity score).
+- **Automated Content Moderation** — Flags spam, vulgarity, and non-AI submissions, dropping them from digests and chat.
+- **Personalized Daily Delivery** — Keyword scoring matches user interests, deduplicated against `DigestLog`.
+- **Gmail REST API Integration** — Reliable OAuth2 token delivery that avoids cloud SMTP port blocks.
+- **Automated Cron Scheduling** — GitHub Actions triggers the pipeline every morning; APScheduler runs locally.
+
+### Interactive Web Platform & RAG (Phase 3)
+- **Glassmorphic Navigation Bar** — Universal navbar providing instant switching between Landing (`/`), Dashboard (`/dashboard`), and Chat (`/chat`).
+- **News Dashboard (`/dashboard`)**:
+  - Live statistics cards: Total Articles, Articles Today, Active Sources, Subscriber Count.
+  - Live search across titles.
+  - Multi-filter drawer: Filter by Source, Topic Tag (with frequency counts), and Time Range (Today, 7 days, 30 days, 90 days, All time).
+  - Article cards with technical complexity gauges (Beginner to Expert), key takeaways, tags, and direct source links.
+  - Full client-side and server-side pagination.
+- **Conversational RAG Chat (`/chat`)**:
+  - Semantic Q&A over the entire news database using **Gemini Embedding (3072 dimensions)** and **pgvector**.
+  - 6 suggested discovery prompts for immediate interaction.
+  - Grounded responses with source citation badges `[Article N]`.
+  - Interactive source reference cards showing article titles, dates, takeaways, tags, and external URLs.
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | Next.js 15, React, TypeScript, Tailwind CSS, Framer Motion, Lucide Icons |
-| **Backend API** | FastAPI, Uvicorn, SQLAlchemy, Pydantic |
-| **AI/LLM** | Google Gemini (`google-genai` SDK), Pydantic structured output |
-| **Scraping** | `feedparser`, `requests`, `BeautifulSoup4`, `python-dateutil` |
-| **Email** | Gmail REST API (`google-api-python-client`), Jinja2 HTML templates |
-| **Database** | PostgreSQL 17 (Docker local / Neon cloud) |
-| **Scheduling** | GitHub Actions cron (prod), APScheduler (local) |
-| **Containerization** | Docker, Docker Compose |
-| **Package Manager** | `uv` (Python), `npm` (Node.js) |
+| Layer | Technologies |
+|-------|--------------|
+| **Frontend** | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, Framer Motion, Lucide Icons |
+| **Backend API** | Python 3.12, FastAPI, Uvicorn, SQLAlchemy ORM, Pydantic, Tenacity |
+| **AI / LLM** | Google Gemini API (`gemini-2.5-flash`), Gemini Embedding API (`gemini-embedding-001`) |
+| **Vector Database** | PostgreSQL 17 + `pgvector` extension (Docker `pgvector/pgvector:pg17` local / Neon cloud) |
+| **Scraping & Data** | `feedparser`, `beautifulsoup4`, `requests`, `python-dateutil` |
+| **Email Delivery** | Gmail REST API (`google-api-python-client`), Jinja2 HTML templates |
+| **Automation** | GitHub Actions Cron (production), APScheduler (local daemon) |
+| **DevOps & Infra** | Docker, Docker Compose, Render (Web Service), Vercel (Frontend), Neon (Postgres) |
 
 ---
 
@@ -125,37 +150,46 @@ Users subscribe through a sleek Next.js landing page, select their interests (LL
 ai-news/
 ├── backend/
 │   ├── Dockerfile
-│   ├── pyproject.toml              # Python dependencies (uv)
-│   ├── get_gmail_token.py          # OAuth2 token generation helper
+│   ├── pyproject.toml              # Dependencies (managed with uv)
+│   ├── get_gmail_token.py          # Gmail OAuth2 desktop token helper
 │   └── app/
-│       ├── main.py                 # Worker daemon + pipeline orchestration
-│       ├── api.py                  # FastAPI endpoints (subscribe, cron trigger, unsubscribe)
-│       ├── config.py               # Environment variable loader
-│       ├── database.py             # SQLAlchemy engine + session factory
-│       ├── models.py               # ORM models (User, Source, Content, DigestLog)
-│       ├── processor.py            # Gemini LLM summarization with Pydantic validation
-│       ├── curator.py              # Preference-based scoring + dedup engine
-│       ├── email_service.py        # Gmail API delivery + Jinja2 rendering
+│       ├── main.py                 # Pipeline scheduler & worker daemon
+│       ├── api.py                  # FastAPI endpoints (REST + RAG + Dashboard)
+│       ├── config.py               # Environment configuration
+│       ├── database.py             # SQLAlchemy session & pgvector extension init
+│       ├── models.py               # ORM Models (User, Source, Content with Vector, DigestLog)
+│       ├── processor.py            # Gemini summarization & Pydantic validation
+│       ├── embedder.py             # Batch vector embedding generator (gemini-embedding-001)
+│       ├── rag.py                  # Full RAG chain (embed query -> cosine search -> answer)
+│       ├── curator.py              # Preference scoring & deduplication
+│       ├── email_service.py        # Gmail API delivery & Jinja2 rendering
 │       ├── scraper/
-│       │   ├── orchestrator.py     # Source seeding + scraper dispatch
-│       │   └── rss_scraper.py      # Universal RSS feed parser
+│       │   ├── orchestrator.py     # Source seeding & runner dispatch
+│       │   └── rss_scraper.py      # RSS feed fetching and parsing
 │       └── templates/
 │           ├── digest.html         # Daily digest email template
 │           └── welcome.html        # Welcome email template
 ├── frontend/
 │   ├── Dockerfile
+│   ├── package.json
 │   └── src/app/
-│       ├── page.tsx                # Landing page with subscription form
-│       ├── layout.tsx              # Root layout
-│       ├── globals.css             # Design system (dark mode, glassmorphism)
+│       ├── layout.tsx              # Root HTML & metadata layout
+│       ├── globals.css             # Glassmorphism tokens & Tailwind styling
+│       ├── page.tsx                # Landing page with topic picker & subscription form
+│       ├── components/
+│       │   └── Navbar.tsx          # Shared sticky navigation bar
+│       ├── dashboard/
+│       │   └── page.tsx            # News dashboard with search, filters & stats
+│       ├── chat/
+│       │   └── page.tsx            # Conversational RAG chat interface
 │       └── unsubscribe/
-│           └── page.tsx            # Unsubscribe confirmation page
+│           └── page.tsx            # Unsubscribe confirmation screen
 ├── .github/
 │   └── workflows/
-│       └── daily_pipeline.yml      # Scheduled cron to trigger pipeline daily
-├── docker-compose.yml              # Local multi-service orchestration
-├── .env                            # Environment variables (not committed)
-└── README.md
+│       └── daily_pipeline.yml      # Scheduled cron triggering Render wake & pipeline
+├── docker-compose.yml              # Local multi-service orchestration (DB, API, Worker, UI)
+├── README.md
+└── .env                            # Environment variables (git-ignored)
 ```
 
 ---
@@ -164,111 +198,99 @@ ai-news/
 
 ### Prerequisites
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
-- A [Google Gemini API Key](https://aistudio.google.com/apikey)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- [Google Gemini API Key](https://aistudio.google.com/apikey)
 - *(Optional)* Gmail OAuth2 credentials for email delivery
 
-### 1. Clone the Repository
+### 1. Clone & Configure
 
 ```bash
 git clone https://github.com/BhuvanDamodar/briefly.ai-Newsletter.git
 cd briefly.ai-Newsletter
 ```
 
-### 2. Configure Environment Variables
-
 Create a `.env` file in the project root:
 
 ```env
-# ── Database ──
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your_secure_password
+# ── Database (Postgres with pgvector) ──
+POSTGRES_USER=ainews_user
+POSTGRES_PASSWORD=ainews_password
 POSTGRES_DB=ainews
-DATABASE_URL=postgresql://postgres:your_secure_password@db:5432/ainews
+DATABASE_URL=postgresql://ainews_user:ainews_password@db:5432/ainews
 
-# ── LLM ──
+# ── Gemini LLM & Embeddings ──
 LLM_API_KEY=your_gemini_api_key
 LLM_MODEL=gemini-2.5-flash
 
-# ── Email (Optional - omit for mock console output) ──
+# ── Email Delivery (Optional) ──
 FROM_EMAIL=your_email@gmail.com
-GMAIL_TOKEN_B64=your_base64_encoded_oauth_token
+GMAIL_TOKEN_B64=your_base64_oauth_token
 
-# ── URLs ──
+# ── Frontend & API URLs ──
 FRONTEND_URL=http://localhost:3000
 API_URL=http://localhost:8000
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
-### 3. Start All Services
+### 2. Start Services via Docker Compose
 
 ```bash
 docker-compose up --build
 ```
 
-This spins up four containers:
+This starts all four services:
+- **`db`** (`5432`): `pgvector/pgvector:pg17`
+- **`api`** (`8000`): FastAPI server
+- **`worker`**: Background APScheduler worker
+- **`frontend`** (`3000`): Next.js web application
 
-| Container | Port | Purpose |
-|-----------|------|---------|
-| `db` | `5432` | PostgreSQL database |
-| `api` | `8000` | FastAPI REST API |
-| `worker` | - | Runs the scrape → process → deliver pipeline |
-| `frontend` | `3000` | Next.js landing page |
-
-### 4. Visit the App
+### 3. Open the Application
 
 - **Landing Page:** [http://localhost:3000](http://localhost:3000)
-- **API Health Check:** [http://localhost:8000](http://localhost:8000)
-- **API Docs (Swagger):** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **News Dashboard:** [http://localhost:3000/dashboard](http://localhost:3000/dashboard)
+- **RAG Chat:** [http://localhost:3000/chat](http://localhost:3000/chat)
+- **Interactive API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
 ## API Reference
 
+### Core Pipeline & Subscription
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/` | Health check |
-| `GET` | `/api/cron/trigger` | Triggers the full pipeline as a background task |
-| `POST` | `/api/subscribe` | Subscribe a new user `{ "email": "...", "preferences": [...] }` |
-| `GET` | `/api/preferences/{email}` | Retrieve a user's current preferences |
-| `GET` | `/api/unsubscribe?email=...` | Deactivate a user's subscription |
+| `GET` | `/` | API status check |
+| `GET` | `/api/cron/trigger` | Triggers the ingestion, processing, embedding, and delivery pipeline |
+| `POST` | `/api/subscribe` | Subscribes an email with selected topic keywords |
+| `GET` | `/api/preferences/{email}` | Fetches stored preferences for an email |
+| `GET` | `/api/unsubscribe?email=...` | Deactivates a user's subscription |
+
+### Dashboard & RAG Endpoints (Phase 3)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/articles` | Paginated article list supporting `page`, `page_size`, `search`, `source`, `tag`, and `days` filters |
+| `GET` | `/api/articles/stats` | Aggregated counts for total articles, today's articles, active sources, and subscribers |
+| `GET` | `/api/articles/sources` | Returns active RSS source names for filter selectors |
+| `GET` | `/api/articles/tags` | Extracted and sorted topic tag frequency counts |
+| `POST` | `/api/chat` | RAG query endpoint (`{ "query": "..." }`) returning grounded answer and source citations |
 
 ---
 
 ## Deployment
 
-The production architecture is designed to be **100% free** with no credit card required.
+The application is deployed across managed cloud providers on $0/month free tiers:
 
-| Component | Provider | Tier |
-|-----------|----------|------|
-| Backend API | [Render](https://render.com) | Free Web Service |
-| Database | [Neon](https://neon.tech) | Free Tier PostgreSQL |
-| Frontend | [Vercel](https://vercel.com) | Free Hobby Plan |
-| Scheduler | [GitHub Actions](https://github.com/features/actions) | Free (2,000 min/month) |
-| Email | Gmail REST API | Free (500 emails/day) |
-| AI/LLM | Google Gemini | Free Tier |
+| Component | Provider | Notes |
+|-----------|----------|-------|
+| **Backend API** | [Render](https://render.com) | Free Web Service with auto-sleep |
+| **Vector Database** | [Neon](https://neon.tech) | Free PostgreSQL with native `pgvector` |
+| **Frontend** | [Vercel](https://vercel.com) | Next.js deployment on Hobby tier |
+| **Scheduler** | [GitHub Actions](https://github.com/features/actions) | Daily cron wakes Render and triggers pipeline |
+| **LLM & Vectors** | [Google Gemini](https://ai.google.dev) | Gemini 2.5 Flash + Embedding 001 free tier |
+| **Email** | Gmail REST API | 500 emails/day free tier quota |
 
-### Deployment Steps
-
-1. **Database** - Create a free Neon project and copy the connection string.
-2. **Backend** - Create a Render Web Service pointing to the `backend/` directory. Set environment variables (`DATABASE_URL`, `LLM_API_KEY`, `GMAIL_TOKEN_B64`, etc.) in the Render dashboard.
-3. **Frontend** - Import the repository to Vercel. Set `NEXT_PUBLIC_API_URL` to your Render service URL.
-4. **Scheduler** - The included GitHub Actions workflow (`.github/workflows/daily_pipeline.yml`) automatically triggers the pipeline at 5:00 AM UTC (7:00 AM CET) daily. It first wakes the Render free-tier server from cold sleep, waits for boot, then triggers the pipeline endpoint.
-
----
-
-## Gmail OAuth2 Setup
-
-To enable real email delivery (instead of mock console output):
-
-1. Create a Google Cloud project and enable the **Gmail API**.
-2. Create OAuth2 credentials (Desktop App type).
-3. Run the token helper script:
-   ```bash
-   cd backend
-   python get_gmail_token.py
-   ```
-4. The script outputs a base64 string. Set it as the `GMAIL_TOKEN_B64` environment variable.
-
----
-
+> **Production Database Setup Note**:
+> When deploying to Neon PostgreSQL, ensure the extension and column are initialized:
+> ```sql
+> CREATE EXTENSION IF NOT EXISTS vector;
+> ALTER TABLE content ADD COLUMN IF NOT EXISTS embedding vector(3072);
+> ```
