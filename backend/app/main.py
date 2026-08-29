@@ -1,11 +1,12 @@
 import logging
 import time
 from apscheduler.schedulers.background import BackgroundScheduler
-from app.database import Base, engine
+from app.database import Base, engine, init_extensions
 
 # Import our pipeline scripts
 from app.scraper.orchestrator import run_all_scrapers
 from app.processor import process_pending_articles
+from app.embedder import embed_processed_articles
 from app.email_service import deliver_daily_digests
 
 logging.basicConfig(
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 def setup_db():
     logger.info("Initializing database tables...")
+    init_extensions()  # Enable pgvector extension
     import app.models  # noqa
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables verified/created.")
@@ -32,6 +34,10 @@ def pipeline_job():
         # Step 2: Read Text and Summarize via LLM
         logger.info("--- Step 2: Processing ---")
         process_pending_articles(limit=35) # Reduced from 50 to 35 to guarantee we don't exceed Render's 15min timeout
+        
+        # Step 2.5: Generate vector embeddings for RAG
+        logger.info("--- Step 2.5: Embedding ---")
+        embed_processed_articles(limit=35)
         
         # Step 3: Rank by User Profile and Send Emails
         logger.info("--- Step 3: Delivery ---")
