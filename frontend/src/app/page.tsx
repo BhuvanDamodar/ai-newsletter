@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Sparkles, Mail, CheckCircle2, Loader2, BrainCircuit, Code, PenTool, LayoutTemplate, Building, Shield, Microchip, BookOpen } from "lucide-react";
+import Navbar from "./components/Navbar";
 
 export default function Home() {
   const [email, setEmail] = useState("");
@@ -75,14 +76,9 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-6">
-      {/* Brand Logo / Navbar */}
-      <div className="absolute top-6 left-6 md:top-8 md:left-8 z-20 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-brand-500 flex items-center justify-center shadow-lg shadow-brand-500/20">
-          <Sparkles className="w-5 h-5 text-white" />
-        </div>
-        <span className="font-bold text-xl tracking-tight text-white">briefly.ai</span>
-      </div>
+    <>
+      <Navbar />
+      <main className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-6 pt-20">
 
       {/* Background Decor */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-brand-600/20 rounded-full blur-[120px] pointer-events-none" />
@@ -198,5 +194,6 @@ export default function Home() {
         </motion.div>
       </div>
     </main>
+    </>
   );
 }
