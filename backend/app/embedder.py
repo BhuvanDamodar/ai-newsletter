@@ -61,16 +61,22 @@ def generate_embedding(text: str) -> list[float]:
 
 def embed_processed_articles(limit: int = 35):
     """
-    Finds all PROCESSED articles that don't have embeddings yet,
+    Finds recently PROCESSED articles that don't have embeddings yet,
     generates embeddings via Gemini, and stores them in the database.
+    Only processes articles from the last 48 hours to avoid backfilling old data.
     """
+    from datetime import datetime, timedelta, timezone
+    
     db: Session = SessionLocal()
     
     try:
-        # Find processed articles without embeddings
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
+        
+        # Find recent processed articles without embeddings
         articles = db.query(Content).filter(
             Content.status == ContentStatus.PROCESSED,
-            Content.embedding.is_(None)
+            Content.embedding.is_(None),
+            Content.processed_at >= cutoff,
         ).limit(limit).all()
         
         if not articles:
