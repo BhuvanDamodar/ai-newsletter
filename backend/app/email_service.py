@@ -1,18 +1,19 @@
-import os
+import base64
 import json
 import logging
-import base64
-from email.mime.text import MIMEText
+import os
+from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
-from jinja2 import Environment, FileSystemLoader
+from email.mime.text import MIMEText
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from jinja2 import Environment, FileSystemLoader
 
-from app.database import SessionLocal
-from app.models import DigestLog, User, Content
+from app.config import ALERT_EMAIL, API_URL, FROM_EMAIL, FRONTEND_URL, GMAIL_TOKEN_B64
 from app.curator import ContentCurator
-from app.config import FROM_EMAIL, GMAIL_TOKEN_B64, FRONTEND_URL, API_URL
+from app.database import SessionLocal
+from app.models import Content, DigestLog, User
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,30 @@ class EmailDeliverer:
         welcome_template = jinja_env.get_template('welcome.html')
         html_body = welcome_template.render(email=to_email, frontend_url=FRONTEND_URL, api_url=API_URL)
         return self.send_email(to_email, html_body, subject="Welcome to Briefly.ai! ✨")
+
+    def send_pipeline_alert_email(self, error_message: str, stage: str = "Pipeline") -> bool:
+        """Sends an operational alert email when the automated pipeline encounters an unhandled error."""
+        recipient = ALERT_EMAIL or FROM_EMAIL
+        if not recipient:
+            logger.warning("No ALERT_EMAIL or FROM_EMAIL configured. Skipping pipeline alert email.")
+            return False
+
+        subject = f"🚨 Briefly.ai Pipeline Failure: {stage}"
+        now_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+        html_content = f"""
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+            <h2 style="color: #dc2626; margin-top: 0;">🚨 Briefly.ai Pipeline Failure</h2>
+            <p>An error occurred during the automated news pipeline execution.</p>
+            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                <tr><td style="padding: 8px; font-weight: bold; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">Failed Stage:</td><td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">{stage}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">Timestamp:</td><td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">{now_utc}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">Error Detail:</td><td style="padding: 8px; color: #b91c1c; border-bottom: 1px solid #e2e8f0;"><code>{error_message}</code></td></tr>
+            </table>
+            <p style="color: #64748b; font-size: 12px; margin-bottom: 0;">This is an automated operational alert from Briefly.ai.</p>
+        </div>
+        """
+        return self.send_email(recipient, html_content, subject=subject)
 
     def send_email(self, to_email: str, html_content: str, subject: str = "Your Daily AI News Digest"):
         """Sends an HTML email using the official Gmail API (Bypasses all cloud firewalls)"""

@@ -1,4 +1,5 @@
 import logging
+
 from app.processor import process_pending_articles
 
 # Generate test summaries first, then trigger curation and emailing
@@ -9,10 +10,10 @@ if __name__ == "__main__":
     print("\nRunning Email Delivery generation...")
     
     # Temporarily override the deliver_daily_digests to output an HTML file instead of console text
-    from app.database import SessionLocal
-    from app.models import User
     from app.curator import ContentCurator
+    from app.database import SessionLocal
     from app.email_service import EmailDeliverer
+    from app.models import User
     
     db = SessionLocal()
     curator = ContentCurator()
@@ -20,7 +21,8 @@ if __name__ == "__main__":
     
     user_curation_map = curator.curate_for_all_users(max_articles_per_user=5)
     for user_id, articles in user_curation_map.items():
-        if not articles: continue
+        if not articles:
+            continue
         user = db.query(User).filter(User.id == user_id).first()
         html_body = deliverer.render_email_html(user, articles)
         with open("test_email_output.html", "w") as f:

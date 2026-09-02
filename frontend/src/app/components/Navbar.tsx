@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sparkles, LayoutDashboard, MessageSquare, Menu, X } from "lucide-react";
 
 const navLinks = [
@@ -14,6 +14,21 @@ const navLinks = [
 export default function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Speculatively warm up sleeping Render backend once per browser session
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const alreadyWarmed = sessionStorage.getItem("briefly_backend_warmed");
+      if (!alreadyWarmed) {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        fetch(`${apiUrl}/api/health`, { mode: "no-cors" }).catch(() => {});
+        sessionStorage.setItem("briefly_backend_warmed", "true");
+      }
+    } catch {
+      // Ignore storage or network errors silently
+    }
+  }, []);
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/5">

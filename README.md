@@ -259,12 +259,14 @@ This starts all four services:
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/` | API status check |
+| `GET` | `/api/health` | Lightweight stateless health check for speculative frontend pre-warming |
+| `GET` | `/api/status` | Comprehensive observability status: uptime, database connection, article/user counts, and last pipeline run details |
 | `GET` | `/api/cron/trigger` | Triggers the ingestion, processing, embedding, and delivery pipeline |
 | `POST` | `/api/subscribe` | Subscribes an email with selected topic keywords |
 | `GET` | `/api/preferences/{email}` | Fetches stored preferences for an email |
 | `GET` | `/api/unsubscribe?email=...` | Deactivates a user's subscription |
 
-### Dashboard & RAG Endpoints (Phase 3)
+### Dashboard & RAG Endpoints
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/articles` | Paginated article list supporting `page`, `page_size`, `search`, `source`, `tag`, and `days` filters |
@@ -272,6 +274,89 @@ This starts all four services:
 | `GET` | `/api/articles/sources` | Returns active RSS source names for filter selectors |
 | `GET` | `/api/articles/tags` | Extracted and sorted topic tag frequency counts |
 | `POST` | `/api/chat` | RAG query endpoint (`{ "query": "..." }`) returning grounded answer and source citations |
+
+---
+
+## Testing & Quality Assurance
+
+Briefly.ai employs a multi-tiered testing strategy combining fast local SQLite emulation with real PostgreSQL + pgvector integration testing:
+
+1. **Fast Unit & Integration Suite (SQLite)**: Compiles `Vector(3072)` as SQLite `TEXT` via `@compiles(Vector, "sqlite")`, running 47 tests completely offline in ~1.5 seconds.
+2. **Real Database Integration Suite (PostgreSQL + pgvector)**: Runs against a live `pgvector/pgvector:pg17` instance (in CI or Docker) in [`test_pgvector_integration.py`](file:///Users/bhuvandamodar/Documents/Projects/ai-news/backend/tests/test_pgvector_integration.py) to verify vector insertion, 3072-dimension constraints, cosine distance (`<=>`) queries, and nearest-neighbor ranking.
+
+### Running Tests Locally
+
+```bash
+cd backend
+# Run unit tests
+uv run pytest tests/ -v
+
+# Run linter
+uv run ruff check .
+```
+
+### Test Suite Structure
+
+| Test Module | Coverage Area |
+|---|---|
+| [`test_curator.py`](file:///Users/bhuvandamodar/Documents/Projects/ai-news/backend/tests/test_curator.py) | User preference scoring algorithms (+5 per topic match, +1 base), spam filtering (`is_appropriate_ai_news`), top-N selection, and `DigestLog` deduplication. |
+| [`test_processor.py`](file:///Users/bhuvandamodar/Documents/Projects/ai-news/backend/tests/test_processor.py) | Pydantic schema validation, LLM prompt formatting, state transitions (`PENDING` $\to$ `PROCESSED` / `FAILED`), text clipping (>15k characters), and 429 rate limit backoff. |
+| [`test_embedder.py`](file:///Users/bhuvandamodar/Documents/Projects/ai-news/backend/tests/test_embedder.py) | Text construction (`title \| takeaway \| points \| tags`), pipe-separated formatting, 48-hour cutoff window filter. |
+| [`test_rag.py`](file:///Users/bhuvandamodar/Documents/Projects/ai-news/backend/tests/test_rag.py) | Context builder numbering `[Article N]`, section dividers, fallback on empty article list, and grounded generation with source citations. |
+| [`test_api.py`](file:///Users/bhuvandamodar/Documents/Projects/ai-news/backend/tests/test_api.py) | Full FastAPI endpoint integration tests: `/api/health`, `/api/status`, `/api/subscribe`, preference fetching, unsubscription, article pagination, search filters, stats aggregation, and `/api/chat`. |
+| [`test_pgvector_integration.py`](file:///Users/bhuvandamodar/Documents/Projects/ai-news/backend/tests/test_pgvector_integration.py) | Live PostgreSQL tests: pgvector extension check, 3072-d insertion, dimension mismatch rejection, cosine distance ranking, and `PipelineRun` table persistence. |
+
+---
+
+## Continuous Integration (CI/CD)
+
+Automated continuous integration is handled by **GitHub Actions** ([`.github/workflows/ci.yml`](file:///Users/bhuvandamodar/Documents/Projects/ai-news/.github/workflows/ci.yml)) on every push and pull request:
+
+```
+Push / PR ──► ┌────────────────────────────────────────────────────────┐
+              │ 1. backend-test: Python 3.12 (uv) + pgvector:pg17      │
+              │    • ruff check . (Code linting)                       │
+              │    • pytest tests/ -v (Unit + PostgreSQL tests)        │
+              │    • docker build backend (Production container check) │
+              ├────────────────────────────────────────────────────────┤
+              │ 2. frontend-build: Node.js 20                          │
+              │    • npm ci                                            │
+              │    • npm run build (Next.js 16 typecheck & bundle)     │
+              └────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Observability & Error Alerting
+
+- **Structured JSON Logging:** Automatically enabled in production (`RENDER=true`). Outputs single-line JSON records formatted for cloud log aggregators.
+- **Pipeline Health & Telemetry (`/api/status`):** Queries persisted `PipelineRun` records from PostgreSQL to survive server restarts, tracking execution status, article counts, duration, and error counts without exposing internal stack traces.
+- **Automated Failure Alerts:** If an unhandled exception occurs during the daily pipeline run, an operational failure report with stack traces and timestamps is automatically dispatched to `ALERT_EMAIL` via the authenticated Gmail API.
+
+---
+
+## RAG Evaluation Benchmark Suite
+
+A standalone benchmarking suite evaluates semantic retrieval quality and citation accuracy:
+
+- **Dataset (`eval_dataset.json`):** 20 curated test queries across 5 question types (`direct`, `paraphrased`, `topic`, `multi_article`, and `hard_distractor`) referencing immutable article GUIDs and URLs.
+- **Benchmark Runner (`evaluate_rag.py`):** Computes **Hit@1**, **Hit@3**, **Hit@5**, **Recall@5** (multi-document target coverage), **Citation Presence Rate**, and retrieval/end-to-end latency.
+
+```bash
+cd backend
+uv run python -m tests.rag_eval.evaluate_rag
+```
+
+---
+
+## Cold-Start & Performance Architecture
+
+Briefly.ai is built to run on $0/month free-tier infrastructure (Render web services auto-sleep after 15 minutes). The frontend is engineered to degrade gracefully and minimize cold-start friction:
+
+1. **Speculative Pre-Warming (`Navbar.tsx`):** A non-blocking health check ping (`GET /api/health`) fires once per session on initial interaction, allowing Render to boot up while the user browses.
+2. **Client-Side Session Cache with Background Refresh (`dashboard/page.tsx`):** Articles, stats, sources, and tags render immediately from client-side session cache without waiting for the backend, followed by a background revalidation.
+3. **Confirmed Subscription & Unsubscription (`page.tsx`, `unsubscribe/page.tsx`):** Uses confirmed persistence and bounded retries to handle transient failures and backend cold starts, providing informative progress feedback (*"Connecting to service..."*).
+4. **Progressive Chat UX (`chat/page.tsx`):** Multi-stage loading indicators inform the user of progress during cold-start RAG queries.
 
 ---
 
@@ -294,3 +379,4 @@ The application is deployed across managed cloud providers on $0/month free tier
 > CREATE EXTENSION IF NOT EXISTS vector;
 > ALTER TABLE content ADD COLUMN IF NOT EXISTS embedding vector(3072);
 > ```
+

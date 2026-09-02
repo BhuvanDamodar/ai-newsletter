@@ -1,15 +1,16 @@
 import logging
+from datetime import UTC, datetime, timedelta
+from io import BytesIO
+
 import feedparser
 import requests
-from io import BytesIO
-from datetime import datetime, timezone, timedelta
-from dateutil import parser as date_parser
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
 from bs4 import BeautifulSoup
+from dateutil import parser as date_parser
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models import Source, Content, ContentStatus, ContentSourceType
+from app.models import Content, ContentSourceType, ContentStatus, Source
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class GenericRSSScraper:
             if not feed.entries:
                 return
 
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.time_window_hours)
+        cutoff_time = datetime.now(UTC) - timedelta(hours=self.time_window_hours)
         new_items_count = 0
 
         for entry in feed.entries:
@@ -62,7 +63,7 @@ class GenericRSSScraper:
                 published_at = date_parser.parse(published_str)
                 # Ensure timezone aware
                 if published_at.tzinfo is None:
-                    published_at = published_at.replace(tzinfo=timezone.utc)
+                    published_at = published_at.replace(tzinfo=UTC)
                 
                 # Check if it's within our 24h window
                 if published_at < cutoff_time:

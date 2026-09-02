@@ -1,13 +1,15 @@
 import json
 import logging
 import time
-from google import genai
-from tenacity import retry, wait_exponential, stop_after_attempt
-from sqlalchemy.orm import Session
+from datetime import UTC
 
+from google import genai
+from sqlalchemy.orm import Session
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+from app.config import LLM_API_KEY
 from app.database import SessionLocal
 from app.models import Content, ContentStatus
-from app.config import LLM_API_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +53,7 @@ def build_embedding_text(article: Content) -> str:
 
 @retry(wait=wait_exponential(multiplier=1, min=10, max=60), stop=stop_after_attempt(3), reraise=True)
 def generate_embedding(text: str) -> list[float]:
-    """Generates a 768-dim embedding vector using Gemini Embedding API."""
+    """Generates a 3072-dim embedding vector using Gemini Embedding API."""
     result = client.models.embed_content(
         model=EMBEDDING_MODEL,
         contents=text,
@@ -65,12 +67,12 @@ def embed_processed_articles(limit: int = 35):
     generates embeddings via Gemini, and stores them in the database.
     Only processes articles from the last 48 hours to avoid backfilling old data.
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
     
     db: Session = SessionLocal()
     
     try:
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
+        cutoff = datetime.now(UTC) - timedelta(hours=48)
         
         # Find recent processed articles without embeddings
         articles = db.query(Content).filter(

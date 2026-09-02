@@ -1,8 +1,9 @@
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import sessionmaker
-from app.config import DATABASE_URL
 import logging
+
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import declarative_base, sessionmaker
+
+from app.config import DATABASE_URL
 
 logger = logging.getLogger(__name__)
 

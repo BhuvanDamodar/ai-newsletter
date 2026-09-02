@@ -11,21 +11,59 @@ function UnsubscribeContent() {
   const email = searchParams.get("email");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [loadingMessage, setLoadingMessage] = useState("Unsubscribing...");
 
-  const handleUnsubscribe = () => {
+  const handleUnsubscribe = async () => {
     if (!email) return;
-    
-    // Instantly show success so the user doesn't have to wait for Render to wake up
-    setStatus("success");
-    
-    // Fire the API request in the background
+
+    setStatus("loading");
+    setLoadingMessage("Unsubscribing from daily digests...");
+    setMessage("");
+
+    const timer = setTimeout(() => {
+      setLoadingMessage("Connecting to service - initial setup may take a few moments...");
+    }, 3500);
+
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      fetch(`${apiUrl}/api/unsubscribe?email=${encodeURIComponent(email)}`).catch(err => {
-        console.error("Background unsubscribe failed:", err);
-      });
-    } catch (err) {
-      console.error("Failed to initiate unsubscribe:", err);
+      let retries = 2;
+      let success = false;
+      let lastErr = "Failed to unsubscribe. Please try again.";
+
+      while (retries >= 0) {
+        try {
+          const res = await fetch(`${apiUrl}/api/unsubscribe?email=${encodeURIComponent(email)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === "success" || data.status === "ok") {
+              success = true;
+              break;
+            } else {
+              lastErr = data.message || "Unsubscribe request was not processed.";
+            }
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            lastErr = errData.message || errData.detail || "Service returned an error.";
+          }
+        } catch (err: any) {
+          if (retries === 0) throw err;
+        }
+        retries--;
+        await new Promise(r => setTimeout(r, 3500));
+      }
+
+      if (success) {
+        setStatus("success");
+      } else {
+        setStatus("error");
+        setMessage(lastErr);
+      }
+    } catch (err: any) {
+      console.error("Unsubscribe failed:", err);
+      setStatus("error");
+      setMessage(err.message || "Unable to reach the server. Please try again in a moment.");
+    } finally {
+      clearTimeout(timer);
     }
   };
 
@@ -95,6 +133,12 @@ function UnsubscribeContent() {
             {status === "loading" && <Loader2 className="w-4 h-4 animate-spin" />}
             Confirm Unsubscribe
           </button>
+          {status === "loading" && (
+            <p className="text-brand-300 text-xs mt-2 flex items-center justify-center gap-1.5 animate-pulse">
+              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+              {loadingMessage}
+            </p>
+          )}
         </div>
       )}
     </motion.div>

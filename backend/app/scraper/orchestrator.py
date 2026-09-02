@@ -1,6 +1,7 @@
 import logging
-from app.database import SessionLocal, Base, engine
-from app.models import Source, ContentSourceType
+
+from app.database import SessionLocal
+from app.models import ContentSourceType, Source
 from app.scraper.rss_scraper import run_rss_scrapers
 
 logger = logging.getLogger(__name__)

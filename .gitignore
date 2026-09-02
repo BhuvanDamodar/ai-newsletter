@@ -52,5 +52,6 @@ backend/token.json
 backend/credentials.json
 
 
-implementation*
-road*
+implementation*.md
+road*.md
+Task*.md

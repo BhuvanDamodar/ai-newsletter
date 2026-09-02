@@ -1,19 +1,19 @@
 import json
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
-from fastapi import FastAPI, Depends, HTTPException, Query, status, BackgroundTasks
-from tenacity import retry, wait_fixed, stop_after_attempt
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-from sqlalchemy import func, text
-from pydantic import BaseModel
-from typing import List, Optional
+from datetime import UTC, datetime, timedelta
 
-from app.database import engine, SessionLocal, Base
-from app.models import User, Content, ContentStatus, Source
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from sqlalchemy import func, text
+from sqlalchemy.orm import Session
+from tenacity import retry, stop_after_attempt, wait_fixed
+
+from app.database import Base, SessionLocal, engine
 from app.email_service import EmailDeliverer
 from app.main import pipeline_job
+from app.models import Content, ContentStatus, Source, User
 
 logger = logging.getLogger(__name__)
 
@@ -64,16 +64,15 @@ def get_db():
 # --- Pydantic Schemas for API ---
 class UserCreate(BaseModel):
     email: str
-    preferences: List[str] = []
+    preferences: list[str] = []
 
 class UserResponse(BaseModel):
     id: int
     email: str
-    preferences: List[str]
+    preferences: list[str]
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 class ChatRequest(BaseModel):
     query: str
@@ -82,6 +81,77 @@ class ChatRequest(BaseModel):
 @app.get("/")
 def read_root():
     return {"status": "ok", "message": "AI News API running"}
+
+
+@app.get("/api/health")
+def health_check():
+    """Stateless lightweight health check for speculative frontend pre-warming."""
+    return {"status": "ok"}
+
+
+@app.get("/api/status")
+def pipeline_status(db: Session = Depends(get_db)):
+    """Comprehensive observability health check: DB stats, pipeline execution state, and server uptime."""
+    from app.models import PipelineRun
+    from app.pipeline_state import get_uptime_seconds, load_state
+
+    db_connected = True
+    total_articles = 0
+    total_embedded = 0
+    active_users = 0
+    active_sources = 0
+    last_db_run = None
+
+    try:
+        total_articles = db.query(func.count(Content.id)).filter(Content.status == ContentStatus.PROCESSED).scalar() or 0
+        total_embedded = db.query(func.count(Content.id)).filter(
+            Content.status == ContentStatus.PROCESSED,
+            Content.embedding.isnot(None),
+        ).scalar() or 0
+        active_users = db.query(func.count(User.id)).filter(User.is_active == True).scalar() or 0
+        active_sources = db.query(func.count(Source.id)).filter(Source.is_active == True).scalar() or 0
+        last_db_run = db.query(PipelineRun).order_by(PipelineRun.started_at.desc()).first()
+    except Exception as e:
+        logger.error(f"DB status query failed: {e}")
+        db_connected = False
+
+    if last_db_run:
+        last_run_info = {
+            "last_run_at": (last_db_run.finished_at or last_db_run.started_at).isoformat(),
+            "status": last_db_run.status,
+            "articles_scraped": last_db_run.articles_scraped,
+            "articles_processed": last_db_run.articles_processed,
+            "articles_embedded": last_db_run.articles_embedded,
+            "digests_delivered": last_db_run.digests_delivered,
+            "errors_last_run": last_db_run.error_count,
+            "duration_seconds": last_db_run.duration_seconds,
+        }
+    else:
+        last_run = load_state()
+        last_run_info = {
+            "last_run_at": last_run.last_run_at,
+            "status": last_run.status,
+            "articles_scraped": last_run.articles_scraped,
+            "articles_processed": last_run.articles_processed,
+            "articles_embedded": last_run.articles_embedded,
+            "digests_delivered": last_run.digests_delivered,
+            "errors_last_run": len(last_run.errors or []),
+            "duration_seconds": last_run.duration_seconds,
+        }
+
+    return {
+        "status": "healthy" if db_connected and last_run_info.get("status") != "failed" else "degraded",
+        "database_connected": db_connected,
+        "uptime_seconds": get_uptime_seconds(),
+        "database_stats": {
+            "total_articles": total_articles,
+            "total_embedded": total_embedded,
+            "active_users": active_users,
+            "active_sources": active_sources,
+        },
+        "last_pipeline_run": last_run_info,
+    }
+
 
 @app.get("/api/cron/trigger")
 def trigger_pipeline(background_tasks: BackgroundTasks):
@@ -143,7 +213,7 @@ def unsubscribe_user(email: str, db: Session = Depends(get_db)):
 
 # --- Phase 3 API Endpoints: Dashboard + Chat ---
 
-def _parse_summary(summary_json: Optional[str]) -> dict:
+def _parse_summary(summary_json: str | None) -> dict:
     """Safely parse the JSON summary stored on a Content row."""
     if not summary_json:
         return {}
@@ -157,10 +227,10 @@ def _parse_summary(summary_json: Optional[str]) -> dict:
 def get_articles(
     page: int = Query(1, ge=1),
     page_size: int = Query(12, ge=1, le=50),
-    search: Optional[str] = None,
-    source: Optional[str] = None,
-    tag: Optional[str] = None,
-    days: Optional[int] = None,
+    search: str | None = None,
+    source: str | None = None,
+    tag: str | None = None,
+    days: int | None = None,
     db: Session = Depends(get_db),
 ):
     """Paginated article listing with optional filters for the Dashboard page."""
@@ -178,7 +248,7 @@ def get_articles(
         query = query.filter(Source.name == source)
 
     if days:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
         query = query.filter(Content.published_at >= cutoff)
 
     # Tag filter requires checking inside the JSON summary
@@ -221,7 +291,7 @@ def get_article_stats(db: Session = Depends(get_db)):
         Content.status == ContentStatus.PROCESSED
     ).scalar()
 
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     articles_today = db.query(func.count(Content.id)).filter(
         Content.status == ContentStatus.PROCESSED,
         Content.published_at >= today_start,

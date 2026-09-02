@@ -48,6 +48,7 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [chatProgress, setChatProgress] = useState("Preparing your answer...");
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -76,6 +77,20 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, userMessage, loadingMessage]);
     setInput("");
     setIsLoading(true);
+    setChatProgress("Preparing your answer...");
+
+    // Progressive loading status timers
+    const timer1 = setTimeout(() => {
+      setChatProgress("Starting AI service — the first request may take a little longer...");
+    }, 3500);
+
+    const timer2 = setTimeout(() => {
+      setChatProgress("Searching relevant news articles in vector archive...");
+    }, 12000);
+
+    const timer3 = setTimeout(() => {
+      setChatProgress("Generating grounded response with source citations...");
+    }, 25000);
 
     try {
       const res = await fetch(`${API_URL}/api/chat`, {
@@ -108,13 +123,16 @@ export default function ChatPage() {
             ? {
                 ...msg,
                 content:
-                  "Sorry, I encountered an error. The backend may be waking up from a cold start — please try again in a moment.",
+                  "Sorry, I encountered an error while connecting. The backend may be finishing its initial boot — please retry in a few seconds.",
                 loading: false,
               }
             : msg
         )
       );
     } finally {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
       setIsLoading(false);
     }
   };
@@ -210,10 +228,10 @@ export default function ChatPage() {
                       } border rounded-2xl px-5 py-4`}
                     >
                       {msg.loading ? (
-                        <div className="flex items-center gap-2 text-text-muted">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span className="text-sm">
-                            Searching articles and generating answer...
+                        <div className="flex items-center gap-2.5 text-text-muted py-1">
+                          <Loader2 className="w-4 h-4 animate-spin text-brand-400 shrink-0" />
+                          <span className="text-sm font-medium animate-pulse text-brand-100">
+                            {chatProgress}
                           </span>
                         </div>
                       ) : (
