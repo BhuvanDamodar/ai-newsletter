@@ -3,7 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import func, text
@@ -153,9 +153,26 @@ def pipeline_status(db: Session = Depends(get_db)):
     }
 
 
+@app.post("/api/cron/trigger")
 @app.get("/api/cron/trigger")
-def trigger_pipeline(background_tasks: BackgroundTasks):
-    """Hits this endpoint at 7am via cron-job.org to start the pipeline."""
+def trigger_pipeline(
+    background_tasks: BackgroundTasks,
+    authorization: str | None = Header(None),
+    x_cron_secret: str | None = Header(None),
+):
+    """Triggers the daily curation and delivery pipeline in the background."""
+    from app.config import CRON_SECRET
+
+    if CRON_SECRET:
+        token = ""
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization.replace("Bearer ", "").strip()
+        elif x_cron_secret:
+            token = x_cron_secret.strip()
+
+        if token != CRON_SECRET:
+            raise HTTPException(status_code=401, detail="Unauthorized cron invocation.")
+
     background_tasks.add_task(pipeline_job)
     return {"status": "started", "message": "Pipeline triggered in background."}
 

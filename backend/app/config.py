@@ -10,6 +10,7 @@ LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.5-flash")
 FROM_EMAIL = os.getenv("FROM_EMAIL")
 GMAIL_TOKEN_B64 = os.getenv("GMAIL_TOKEN_B64")
 ALERT_EMAIL = os.getenv("ALERT_EMAIL", FROM_EMAIL)
+CRON_SECRET = os.getenv("CRON_SECRET", "")
 
 RENDER = os.getenv("RENDER", "false").lower() in ("true", "1", "yes")
 

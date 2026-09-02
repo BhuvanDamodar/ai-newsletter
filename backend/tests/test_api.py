@@ -131,6 +131,12 @@ class TestHealthCheck:
         assert data["last_pipeline_run"]["articles_scraped"] == 10
         assert data["last_pipeline_run"]["errors_last_run"] == 0
 
+    def test_trigger_pipeline_endpoint(self, client):
+        response = client.post("/api/cron/trigger")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "started"
+
 
 # ---------------------------------------------------------------------------
 # Subscription Endpoints

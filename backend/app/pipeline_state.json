@@ -1,0 +1,12 @@
+{
+  "last_run_at": "2026-09-02T18:25:55.812046+00:00",
+  "status": "failed",
+  "articles_scraped": 0,
+  "articles_processed": 0,
+  "articles_embedded": 0,
+  "digests_delivered": 0,
+  "errors": [
+    "(psycopg2.OperationalError) connection to server at \"localhost\" (::1), port 5432 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?\nconnection to server at \"localhost\" (127.0.0.1), port 5432 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?\n\n(Background on this error at: https://sqlalche.me/e/20/e3q8)"
+  ],
+  "duration_seconds": 0.02
+}
