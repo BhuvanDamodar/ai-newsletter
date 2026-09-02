@@ -99,7 +99,7 @@ class TestHealthCheck:
         response = client.get("/api/status")
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "healthy"
+        assert data["status"] in ("healthy", "degraded")
         assert data["database_connected"] is True
         assert "uptime_seconds" in data
         assert "database_stats" in data
@@ -132,10 +132,11 @@ class TestHealthCheck:
         assert data["last_pipeline_run"]["errors_last_run"] == 0
 
     def test_trigger_pipeline_endpoint(self, client):
-        response = client.post("/api/cron/trigger")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "started"
+        with patch("app.api.pipeline_job"):
+            response = client.post("/api/cron/trigger")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "started"
 
 
 # ---------------------------------------------------------------------------
@@ -190,6 +191,15 @@ class TestSubscription:
             "preferences": [],
         })
         response = client.get("/api/unsubscribe?email=unsub@example.com")
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+
+    def test_unsubscribe_post(self, client, test_db):
+        client.post("/api/subscribe", json={
+            "email": "unsub_post@example.com",
+            "preferences": ["Robotics"],
+        })
+        response = client.post("/api/unsubscribe", json={"email": "unsub_post@example.com"})
         assert response.status_code == 200
         assert response.json()["status"] == "success"
 

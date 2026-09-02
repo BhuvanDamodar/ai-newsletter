@@ -25,7 +25,7 @@
 
 ## Overview
 
-Briefly.ai is a production-grade Generative AI application that automatically ingests news from 8+ curated AI sources, analyzes and extracts insights using Google Gemini, scores content against individual user preferences, generates 3072-dimensional vector embeddings in PostgreSQL (`pgvector`), and delivers both personalized daily digests and an interactive web exploration platform.
+Briefly.ai is a production-oriented full-stack Generative AI application that automatically ingests news from 8+ curated AI sources, analyzes and extracts insights using Google Gemini, scores content against individual user preferences, generates 3072-dimensional vector embeddings in PostgreSQL (`pgvector`), and delivers both personalized daily digests and an interactive web exploration platform.
 
 ### Core User Capabilities
 1. **Personalized Daily Briefings** — Receive an automated email digest every morning curated specifically to your selected AI domains (LLMs, Robotics, AI Safety, Startups, Hardware, etc.).
@@ -53,7 +53,7 @@ Briefly.ai is a production-grade Generative AI application that automatically in
 <p align="center">
   <img src="docs/screenshots/chat.png" alt="Briefly.ai RAG Chat" width="850" />
   <br />
-  <em>Conversational RAG Chat interface with grounded Gemini answers and verified source citations.</em>
+  <em>Conversational RAG Chat interface with grounded Gemini answers and source citations.</em>
 </p>
 
 <br />
@@ -91,7 +91,7 @@ Briefly.ai is a production-grade Generative AI application that automatically in
 │   ┌──────────────┐    5:00 AM UTC      ┌─────────────────────────────────┐  │
 │   │ GitHub       │    (7:00 AM CET)    │   FastAPI Backend (Render)      │  │
 │   │ Actions      │ ──────────────────► │                                 │  │
-│   │ (Cron)       │  POST /cron/trigger │  ┌───────────────────────────┐  │  │
+│   │ (Cron)       │ POST /api/cron/...  │  ┌───────────────────────────┐  │  │
 │   └──────────────┘                     │  │     Pipeline (BG Task)    │  │  │
 │                                        │  │                           │  │  │
 │                                        │  │ 1. Scrape   ─► RSS ×8     │  │  │
@@ -135,7 +135,7 @@ Briefly.ai is a production-grade Generative AI application that automatically in
 |---|---|---|---|
 | **Vector Storage** | **PostgreSQL + `pgvector` (3072 dims)** | Pinecone, Qdrant, Chroma | Eliminates multi-database sync issues by keeping relational metadata, user preferences, digest history, and vector embeddings in a single ACID-compliant PostgreSQL instance. |
 | **RAG Pipeline Architecture** | **Direct Custom Pipeline (`rag.py`)** | LangChain, LlamaIndex | Built a transparent, lightweight RAG chain directly using Google GenAI SDK and SQLAlchemy. Retains complete control over prompt construction, latency measurement, and citation grounding. |
-| **Two-Tier Testing Strategy** | **In-memory SQLite + PostgreSQL CI container** | Pure SQLite or Pure Postgres | Custom `@compiles(Vector, "sqlite")` handler enables 47 unit tests to run locally and offline in ~1.5 seconds, while GitHub Actions CI validates pgvector operators (`<=>`) against a live `pgvector/pgvector:pg17` container. |
+| **Two-Tier Testing Strategy** | **In-memory SQLite + PostgreSQL CI container (54 tests)** | Pure SQLite or Pure Postgres | Custom `@compiles(Vector, "sqlite")` handler enables 49 unit tests to run locally and offline in ~1.5 seconds, while GitHub Actions CI validates pgvector operators (`<=>`) against a live `pgvector/pgvector:pg17` container (5 integration tests). |
 | **Free-Tier Cold-Start Handling** | **Speculative Pre-Warming & Client Session Caching** | Paid warm instances, fake optimistic UI | Accepts serverless/free-tier cold boots as an infrastructure constraint and mitigates user impact through background health pings (`Navbar.tsx`), session storage caching, and multi-stage loading feedback. |
 | **Stateful Telemetry** | **`PipelineRun` Database Table** | In-memory globals | Persists daily pipeline execution metrics, duration, and error counts directly into PostgreSQL so that telemetry survives server sleep and restarts. |
 
@@ -150,7 +150,7 @@ Briefly.ai is a production-grade Generative AI application that automatically in
 | **AI / LLM** | Google Gemini 2.5 Flash (`gemini-2.5-flash`), Gemini Embedding (`gemini-embedding-001`, 3072 dims) |
 | **Vector Database** | PostgreSQL 17 + `pgvector` extension (Docker `pgvector/pgvector:pg17` local / Neon serverless) |
 | **Email Delivery** | Gmail REST API (`google-api-python-client`), Jinja2 HTML templates |
-| **Testing & CI** | Pytest, HTTPX, GitHub Actions (CI & daily cron) |
+| **Testing & CI** | Pytest (54 tests), HTTPX, GitHub Actions (CI & daily cron) |
 | **Deployment** | Render (Web Service), Vercel (Frontend), Neon (Database), Docker |
 
 ---
@@ -180,7 +180,7 @@ uv run python -m tests.rag_eval.evaluate_rag
 
 ## Testing & Quality Assurance
 
-The test suite combines fast local SQLite emulation with live PostgreSQL + pgvector integration testing:
+The test suite combines fast local SQLite emulation with live PostgreSQL + pgvector integration testing (54 tests total):
 
 ```bash
 cd backend
@@ -199,7 +199,7 @@ uv run ruff check .
 | [`test_processor.py`](backend/tests/test_processor.py) | Pydantic schema validation, LLM prompt formatting, state transitions (`PENDING` $\to$ `PROCESSED` / `FAILED`), text clipping (>15k chars), and 429 rate limit backoff. |
 | [`test_embedder.py`](backend/tests/test_embedder.py) | Text construction (`title \| takeaway \| points \| tags`), pipe-separated formatting, 48-hour cutoff window filter. |
 | [`test_rag.py`](backend/tests/test_rag.py) | Context builder numbering `[Article N]`, section dividers, empty article fallback, and grounded generation with source citations. |
-| [`test_api.py`](backend/tests/test_api.py) | Full FastAPI endpoint integration tests: `/api/health`, `/api/status`, `/api/cron/trigger`, `/api/subscribe`, preference fetching, unsubscription, article pagination, search filters, stats aggregation, and `/api/chat`. |
+| [`test_api.py`](backend/tests/test_api.py) | Full FastAPI endpoint integration tests: `/api/health`, `/api/status`, `/api/cron/trigger`, `/api/subscribe`, preference fetching, unsubscription (`POST` and `GET`), article pagination, search filters, stats aggregation, and `/api/chat`. |
 | [`test_pgvector_integration.py`](backend/tests/test_pgvector_integration.py) | Live PostgreSQL tests: pgvector extension check, 3072-d insertion, dimension mismatch rejection, cosine distance ranking, and `PipelineRun` table persistence. |
 
 ---
@@ -213,7 +213,7 @@ Push / Pull Request
         │
         ├──► 1. backend-test (Ubuntu + Python 3.12 via uv + pgvector:pg17 container)
         │       • Ruff linter (checks code style & syntax)
-        │       • Pytest suite (47 SQLite unit tests + 5 live PostgreSQL tests)
+        │       • Pytest suite (49 SQLite unit tests + 5 live PostgreSQL tests = 54 total)
         │       • Production Docker build verification (docker build backend)
         │
         └──► 2. frontend-build (Ubuntu + Node.js 20)
@@ -285,7 +285,7 @@ ai-news/
 │       ├── components/
 │       │   └── Navbar.tsx          # Shared sticky navbar with speculative pre-warming
 │       ├── dashboard/
-│       │   └── page.tsx            # News dashboard with search, filters & SWR session cache
+│       │   └── page.tsx            # News dashboard with search, filters & client session cache
 │       ├── chat/
 │       │   └── page.tsx            # Conversational RAG chat with progressive status indicators
 │       └── unsubscribe/
@@ -373,7 +373,7 @@ This starts all four services:
 | `POST` | `/api/cron/trigger` | Triggers the ingestion, processing, embedding, and delivery pipeline in the background (supports `Authorization: Bearer <secret>`). |
 | `POST` | `/api/subscribe` | Subscribes an email with selected topic keywords and sends a welcome digest. |
 | `GET` | `/api/preferences/{email}` | Fetches stored topic preferences for an email. |
-| `GET` | `/api/unsubscribe?email=...` | Confirms unsubscription and deactivates the user record. |
+| `POST` | `/api/unsubscribe` | Confirms unsubscription and deactivates the user record (supports JSON `{ "email": "..." }` or `GET ?email=...`). |
 
 ### Dashboard & RAG Endpoints
 | Method | Endpoint | Description |
@@ -397,7 +397,7 @@ Briefly.ai is designed to operate within available free tiers for portfolio-scal
 | **Frontend** | [Vercel](https://vercel.com) | Next.js deployment on Hobby tier |
 | **Scheduler** | [GitHub Actions](https://github.com/features/actions) | Daily cron wakes Render and triggers pipeline |
 | **LLM & Vectors** | [Google Gemini](https://ai.google.dev) | Gemini 2.5 Flash + Embedding 001 free tier |
-| **Email** | Gmail REST API | 500 emails/day free tier quota |
+| **Email** | Gmail REST API | Authenticated digest and alert delivery |
 
 > **Neon PostgreSQL Initialization**:
 > ```sql

@@ -216,16 +216,29 @@ def get_user_preferences(email: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
+class UnsubscribeRequest(BaseModel):
+    email: str
+
+
+@app.post("/api/unsubscribe")
 @app.get("/api/unsubscribe")
-def unsubscribe_user(email: str, db: Session = Depends(get_db)):
-    """Handles unsubscribe requests directly from the email footer."""
-    user = db.query(User).filter(User.email == email).first()
+def unsubscribe_user(
+    email: str | None = None,
+    payload: UnsubscribeRequest | None = None,
+    db: Session = Depends(get_db),
+):
+    """Handles unsubscribe requests via POST body or GET query parameter."""
+    target_email = (payload.email if payload else email) or ""
+    if not target_email:
+        return {"status": "error", "message": "Email is required to unsubscribe"}
+
+    user = db.query(User).filter(User.email == target_email).first()
     if not user:
         return {"status": "error", "message": "User not found"}
-        
+
     user.is_active = False
     db.commit()
-    return {"status": "success", "message": f"Successfully unsubscribed {email}. You will no longer receive emails."}
+    return {"status": "success", "message": f"Successfully unsubscribed {target_email}. You will no longer receive emails."}
 
 
 # --- Phase 3 API Endpoints: Dashboard + Chat ---
