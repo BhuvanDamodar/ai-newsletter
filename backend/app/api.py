@@ -3,7 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import func, text
@@ -153,9 +153,26 @@ def pipeline_status(db: Session = Depends(get_db)):
     }
 
 
+@app.post("/api/cron/trigger")
 @app.get("/api/cron/trigger")
-def trigger_pipeline(background_tasks: BackgroundTasks):
-    """Hits this endpoint at 7am via cron-job.org to start the pipeline."""
+def trigger_pipeline(
+    background_tasks: BackgroundTasks,
+    authorization: str | None = Header(None),
+    x_cron_secret: str | None = Header(None),
+):
+    """Triggers the daily curation and delivery pipeline in the background."""
+    from app.config import CRON_SECRET
+
+    if CRON_SECRET:
+        token = ""
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization.replace("Bearer ", "").strip()
+        elif x_cron_secret:
+            token = x_cron_secret.strip()
+
+        if token != CRON_SECRET:
+            raise HTTPException(status_code=401, detail="Unauthorized cron invocation.")
+
     background_tasks.add_task(pipeline_job)
     return {"status": "started", "message": "Pipeline triggered in background."}
 
@@ -199,16 +216,29 @@ def get_user_preferences(email: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
+class UnsubscribeRequest(BaseModel):
+    email: str
+
+
+@app.post("/api/unsubscribe")
 @app.get("/api/unsubscribe")
-def unsubscribe_user(email: str, db: Session = Depends(get_db)):
-    """Handles unsubscribe requests directly from the email footer."""
-    user = db.query(User).filter(User.email == email).first()
+def unsubscribe_user(
+    email: str | None = None,
+    payload: UnsubscribeRequest | None = None,
+    db: Session = Depends(get_db),
+):
+    """Handles unsubscribe requests via POST body or GET query parameter."""
+    target_email = (payload.email if payload else email) or ""
+    if not target_email:
+        return {"status": "error", "message": "Email is required to unsubscribe"}
+
+    user = db.query(User).filter(User.email == target_email).first()
     if not user:
         return {"status": "error", "message": "User not found"}
-        
+
     user.is_active = False
     db.commit()
-    return {"status": "success", "message": f"Successfully unsubscribed {email}. You will no longer receive emails."}
+    return {"status": "success", "message": f"Successfully unsubscribed {target_email}. You will no longer receive emails."}
 
 
 # --- Phase 3 API Endpoints: Dashboard + Chat ---

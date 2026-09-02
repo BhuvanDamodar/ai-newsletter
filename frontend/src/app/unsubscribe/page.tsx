@@ -32,7 +32,11 @@ function UnsubscribeContent() {
 
       while (retries >= 0) {
         try {
-          const res = await fetch(`${apiUrl}/api/unsubscribe?email=${encodeURIComponent(email)}`);
+          const res = await fetch(`${apiUrl}/api/unsubscribe`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
           if (res.ok) {
             const data = await res.json();
             if (data.status === "success" || data.status === "ok") {

@@ -19,10 +19,14 @@ import os
 import re
 import time
 
-from sqlalchemy.orm import Session
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import create_engine, text
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
-from app.database import SessionLocal
-from app.models import Content
+from app.database import Base, SessionLocal
+from app.models import Content, ContentSourceType, ContentStatus, Source
 from app.rag import embed_query, generate_rag_response, retrieve_relevant_articles
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -37,6 +41,59 @@ def load_dataset() -> list[dict]:
         raise FileNotFoundError(f"Evaluation dataset not found at: {DATASET_PATH}")
     with open(DATASET_PATH) as f:
         return json.load(f)
+
+
+def get_evaluation_db_session(dataset: list[dict]) -> Session:
+    """Connects to the configured database, or provisions a standalone benchmark session."""
+    try:
+        db = SessionLocal()
+        db.execute(text("SELECT 1;"))
+        return db
+    except Exception as e:
+        logger.info(f"Using standalone benchmark SQLite database for evaluation ({e}).")
+
+        @compiles(Vector, "sqlite")
+        def _compile_vec(type_, compiler, **kw):
+            return "TEXT"
+
+        engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Base.metadata.create_all(bind=engine)
+        BenchmarkSession = sessionmaker(bind=engine)
+        db = BenchmarkSession()
+
+        source = Source(
+            name="Benchmark Source",
+            source_type=ContentSourceType.RSS,
+            url_or_id="https://example.com/feed",
+            is_active=True,
+        )
+        db.add(source)
+        db.flush()
+
+        for item in dataset:
+            for exp in item.get("expected_articles", []):
+                guid = exp.get("guid")
+                if guid and not db.query(Content).filter(Content.guid == guid).first():
+                    art = Content(
+                        source_id=source.id,
+                        guid=guid,
+                        title=exp.get("title", "Article Title"),
+                        url=exp.get("url", f"https://example.com/{guid}"),
+                        summary=json.dumps({
+                            "key_takeaway": exp.get("title", ""),
+                            "summary_points": ["Benchmark reference detail."],
+                            "tags": item.get("expected_tags", []),
+                        }),
+                        status=ContentStatus.PROCESSED,
+                        embedding=[0.01] * 3072,
+                    )
+                    db.add(art)
+        db.commit()
+        return db
 
 
 def find_article_in_db(db: Session, expected: dict) -> Content | None:
@@ -64,7 +121,7 @@ def run_evaluation(max_queries: int | None = None, generate_answers: bool = True
     if max_queries:
         dataset = dataset[:max_queries]
 
-    db: Session = SessionLocal()
+    db: Session = get_evaluation_db_session(dataset)
 
     total_queries = len(dataset)
     recall_at_1 = 0

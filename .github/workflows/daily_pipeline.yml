@@ -19,4 +19,8 @@ jobs:
         
       - name: Trigger the Pipeline Request
         run: |
-          curl -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" https://ai-newsletter-ejym.onrender.com/api/cron/trigger
+          curl -s -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" \
+            https://ai-newsletter-ejym.onrender.com/api/cron/trigger
