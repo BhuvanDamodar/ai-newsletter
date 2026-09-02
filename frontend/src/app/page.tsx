@@ -22,6 +22,8 @@ export default function Home() {
     { id: "research", label: "AI Research", icon: BookOpen },
   ];
 
+  const [loadingMessage, setLoadingMessage] = useState("Setting up your personalized briefing...");
+
   const handleTogglePreference = (topicId: string) => {
     setPreferences(prev => 
       prev.includes(topicId) 
@@ -34,44 +36,54 @@ export default function Home() {
     e.preventDefault();
     if (!email) return;
 
-    // Optimistically update the UI immediately for a snappy user experience
-    setStatus("success");
+    setStatus("loading");
+    setLoadingMessage("Setting up your personalized briefing...");
     setErrorMessage("");
+
+    // Inform user if server is cold booting
+    const timer = setTimeout(() => {
+      setLoadingMessage("Connecting to AI service — initial setup may take a few moments...");
+    }, 3500);
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       
-      // Background retry loop to handle Render's initial cold-start 503 proxy errors
-      const fireAndForgetSubscribe = async () => {
-        let retries = 3;
-        while (retries > 0) {
-          try {
-            const res = await fetch(`${apiUrl}/api/subscribe`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ email, preferences }),
-              keepalive: true
-            });
-            if (res.ok) {
-              break; // Success!
-            }
-          } catch (err) {
-            // Network or parsing error, wait and retry
+      let retries = 2;
+      let success = false;
+      let lastErrMessage = "Failed to subscribe. Please try again.";
+
+      while (retries >= 0) {
+        try {
+          const res = await fetch(`${apiUrl}/api/subscribe`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, preferences }),
+          });
+
+          if (res.ok) {
+            success = true;
+            break;
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            lastErrMessage = errData.detail || "Subscription failed";
+            throw new Error(lastErrMessage);
           }
+        } catch (err: any) {
+          if (retries === 0) throw err;
           retries--;
-          if (retries > 0) {
-            await new Promise(r => setTimeout(r, 5000)); // wait 5 seconds
-          }
+          await new Promise(r => setTimeout(r, 4000));
         }
-      };
-      
-      // Execute without awaiting so the UI updates immediately
-      fireAndForgetSubscribe().catch((err) => {
-        console.error("Background subscription error:", err);
-      });
-      
+      }
+
+      if (success) {
+        setStatus("success");
+      }
     } catch (err: any) {
-      console.error(err);
+      console.error("Subscription error:", err);
+      setStatus("error");
+      setErrorMessage(err.message || "Unable to complete subscription. Please try again.");
+    } finally {
+      clearTimeout(timer);
     }
   };
 
@@ -185,6 +197,12 @@ export default function Home() {
                     Subscribe
                   </button>
                 </div>
+                {status === "loading" && (
+                  <p className="text-brand-300 text-xs mt-2 flex items-center gap-1.5 animate-pulse">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                    {loadingMessage}
+                  </p>
+                )}
                 {status === "error" && (
                   <p className="text-red-400 text-sm mt-2">{errorMessage}</p>
                 )}

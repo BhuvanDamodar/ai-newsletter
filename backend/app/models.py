@@ -1,8 +1,22 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, ForeignKey, Enum, Boolean
-from sqlalchemy.sql import func
-from pgvector.sqlalchemy import Vector
 import enum
+
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.sql import func
+
 from app.database import Base
+
 
 class ContentStatus(enum.Enum):
     PENDING_PROCESSING = "PENDING_PROCESSING"
@@ -52,3 +66,16 @@ class DigestLog(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     content_id = Column(Integer, ForeignKey("content.id")) # Which content was sent
     sent_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class PipelineRun(Base):
+    __tablename__ = "pipeline_runs"
+    id = Column(Integer, primary_key=True, index=True)
+    started_at = Column(DateTime(timezone=True), nullable=False)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    status = Column(String, default="running")  # "running", "success", "failed"
+    articles_scraped = Column(Integer, default=0)
+    articles_processed = Column(Integer, default=0)
+    articles_embedded = Column(Integer, default=0)
+    digests_delivered = Column(Integer, default=0)
+    error_count = Column(Integer, default=0)
+    duration_seconds = Column(Float, default=0.0)

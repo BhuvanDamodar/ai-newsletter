@@ -1,0 +1,262 @@
+[
+  {
+    "id": "rag-001",
+    "type": "direct",
+    "query": "What are the latest updates from Google regarding Gemini 3.5 Transcribe?",
+    "expected_articles": [
+      {
+        "guid": "tc-gemini-35-transcribe",
+        "url": "https://techcrunch.com/2026/08/29/gemini-3-5-transcribe",
+        "title": "Intelligent transcription with Gemini 3.5 Transcribe"
+      }
+    ],
+    "expected_tags": ["Google", "Gemini", "Audio", "Speech"]
+  },
+  {
+    "id": "rag-002",
+    "type": "paraphrased",
+    "query": "How are mobile phones dealing with RAM limitations when executing local AI models?",
+    "expected_articles": [
+      {
+        "guid": "tc-android-memory-crunch",
+        "url": "https://techcrunch.com/2026/08/29/ai-memory-crunch-android",
+        "title": "AI's memory crunch is coming for Android apps"
+      }
+    ],
+    "expected_tags": ["Android", "Hardware", "On-Device AI", "Memory"]
+  },
+  {
+    "id": "rag-003",
+    "type": "topic",
+    "query": "What security incidents have occurred where autonomous agents compromised other systems?",
+    "expected_articles": [
+      {
+        "guid": "tc-ai-rogue-hacked-companies",
+        "url": "https://techcrunch.com/2026/08/29/ai-rogue-hacked-companies",
+        "title": "Here's all the times AI has gone rogue and hacked other companies"
+      }
+    ],
+    "expected_tags": ["Security", "Autonomous Agents", "Cybersecurity"]
+  },
+  {
+    "id": "rag-004",
+    "type": "direct",
+    "query": "Can Google AI Mode assist with booking flights and hotel reservations?",
+    "expected_articles": [
+      {
+        "guid": "tc-google-ai-mode-travel",
+        "url": "https://techcrunch.com/2026/08/29/google-ai-mode-travel",
+        "title": "Google's AI Mode can now track flight prices, help book hotels"
+      }
+    ],
+    "expected_tags": ["Google", "AI Assistants", "Travel"]
+  },
+  {
+    "id": "rag-005",
+    "type": "direct",
+    "query": "What major acquisition is Nvidia reportedly finalizing in the open-source AI community?",
+    "expected_articles": [
+      {
+        "guid": "tc-nvidia-hugging-face",
+        "url": "https://techcrunch.com/2026/08/29/nvidia-hugging-face-acquisition",
+        "title": "Nvidia closes in on Hugging Face acquisition"
+      }
+    ],
+    "expected_tags": ["Nvidia", "Hugging Face", "Acquisitions", "Open Source"]
+  },
+  {
+    "id": "rag-006",
+    "type": "paraphrased",
+    "query": "Why has Amazon significantly increased its procurement of graphics processing units?",
+    "expected_articles": [
+      {
+        "guid": "tc-amazon-nvidia-order",
+        "url": "https://techcrunch.com/2026/08/29/amazon-tripled-nvidia-order",
+        "title": "Amazon just tripled its order of Nvidia chips over surging demand"
+      }
+    ],
+    "expected_tags": ["Amazon", "Nvidia", "Cloud Infrastructure", "Hardware"]
+  },
+  {
+    "id": "rag-007",
+    "type": "topic",
+    "query": "How is generative AI branding confusing consumers across the major tech companies?",
+    "expected_articles": [
+      {
+        "guid": "tc-gemini-branding-problem",
+        "url": "https://techcrunch.com/2026/08/29/gemini-branding-problem",
+        "title": "Google's Gemini has a branding problem, and so does the rest of AI"
+      }
+    ],
+    "expected_tags": ["Google", "Gemini", "Industry Analysis", "Branding"]
+  },
+  {
+    "id": "rag-008",
+    "type": "topic",
+    "query": "What educational benefits do students experience when interacting with ChatGPT in classrooms?",
+    "expected_articles": [
+      {
+        "guid": "openai-students-thinking",
+        "url": "https://openai.com/blog/students-chatgpt-broader-thinking",
+        "title": "Better answers, broader thinking: What students gain from ChatGPT"
+      }
+    ],
+    "expected_tags": ["OpenAI", "ChatGPT", "Education"]
+  },
+  {
+    "id": "rag-009",
+    "type": "direct",
+    "query": "What developers features were introduced in Gemini Omni 1.1 Flash?",
+    "expected_articles": [
+      {
+        "guid": "deepmind-gemini-omni-flash",
+        "url": "https://deepmind.google/blog/gemini-omni-1-1-flash",
+        "title": "Gemini Omni 1.1 Flash lets you build with more control"
+      }
+    ],
+    "expected_tags": ["Google DeepMind", "Gemini", "Developer Tools", "API"]
+  },
+  {
+    "id": "rag-010",
+    "type": "paraphrased",
+    "query": "How are benchmark evaluators conducting blinded assessments of LLM performance?",
+    "expected_articles": [
+      {
+        "guid": "anthropic-double-blind-evals",
+        "url": "https://anthropic.com/news/double-blind-ai-evaluations",
+        "title": "Piloting the world's first double-blind AI evaluations"
+      }
+    ],
+    "expected_tags": ["Anthropic", "Benchmarks", "Evaluations", "AI Safety"]
+  },
+  {
+    "id": "rag-011",
+    "type": "hard_distractor",
+    "query": "What happened during the controversy where automated OpenAI agents reportedly breached Hugging Face systems?",
+    "expected_articles": [
+      {
+        "guid": "tc-openai-hacked-hugging-face",
+        "url": "https://techcrunch.com/2026/08/29/openai-agents-hacked-hugging-face",
+        "title": "The inside story on why OpenAI agents hacked Hugging Face"
+      }
+    ],
+    "expected_tags": ["OpenAI", "Hugging Face", "Security", "Autonomous Agents"]
+  },
+  {
+    "id": "rag-012",
+    "type": "direct",
+    "query": "What was the legal ruling involving Anthropic and the Pentagon defense contracts?",
+    "expected_articles": [
+      {
+        "guid": "tc-anthropic-pentagon-court-win",
+        "url": "https://techcrunch.com/2026/08/29/anthropic-pentagon-court-win",
+        "title": "Anthropic gets its first court win over the Pentagon's supply chain ban"
+      }
+    ],
+    "expected_tags": ["Anthropic", "Government", "Legal", "Defense"]
+  },
+  {
+    "id": "rag-013",
+    "type": "topic",
+    "query": "How are Southeast Asian governments and tech ecosystems supporting artificial intelligence startups?",
+    "expected_articles": [
+      {
+        "guid": "google-thailand-startups",
+        "url": "https://blog.google/thailand-next-gen-startups",
+        "title": "Supporting Thailand's next generation of AI startups"
+      }
+    ],
+    "expected_tags": ["Google", "Startups", "Asia", "Ecosystem"]
+  },
+  {
+    "id": "rag-014",
+    "type": "paraphrased",
+    "query": "What research did Anthropic publish about models capable of autonomously refining their own code?",
+    "expected_articles": [
+      {
+        "guid": "anthropic-self-improving-ai",
+        "url": "https://anthropic.com/news/self-improving-ai-research",
+        "title": "An Anthropic researcher just gave us a peek at self-improving AI"
+      }
+    ],
+    "expected_tags": ["Anthropic", "Self-Improvement", "Recursive AI", "AI Safety"]
+  },
+  {
+    "id": "rag-015",
+    "type": "direct",
+    "query": "Which Meta executive recently departed the company to join OpenAI?",
+    "expected_articles": [
+      {
+        "guid": "tc-meta-exec-joins-openai",
+        "url": "https://techcrunch.com/2026/08/29/meta-exec-leaves-for-openai",
+        "title": "Meta executive leaves for OpenAI as the social media giant faces brain drain"
+      }
+    ],
+    "expected_tags": ["Meta", "OpenAI", "Leadership", "Talent"]
+  },
+  {
+    "id": "rag-016",
+    "type": "hard_distractor",
+    "query": "Who is Barret Zoph and what occurred prior to his departure from Thinking Machines?",
+    "expected_articles": [
+      {
+        "guid": "tc-barret-zoph-thinking-machines",
+        "url": "https://techcrunch.com/2026/08/29/barret-zoph-thinking-machines",
+        "title": "Barret Zoph, the Thinking Machines co-founder ousted before launch"
+      }
+    ],
+    "expected_tags": ["Thinking Machines", "Founders", "Startups"]
+  },
+  {
+    "id": "rag-017",
+    "type": "multi_article",
+    "query": "What shared policy statement did OpenAI, Anthropic, and Google jointly sign regarding safety standards?",
+    "expected_articles": [
+      {
+        "guid": "joint-ai-safety-call",
+        "url": "https://techcrunch.com/2026/08/29/joint-safety-call",
+        "title": "OpenAI, Anthropic, Google, and 100 other companies call for global safety standards"
+      }
+    ],
+    "expected_tags": ["AI Safety", "Policy", "OpenAI", "Anthropic", "Google"]
+  },
+  {
+    "id": "rag-018",
+    "type": "direct",
+    "query": "How much financing did GPU cloud provider Lambda secure for compute expansion?",
+    "expected_articles": [
+      {
+        "guid": "tc-lambda-1b-debt",
+        "url": "https://techcrunch.com/2026/08/29/lambda-1b-debt",
+        "title": "Neocloud Lambda secures $1B in debt to buy more chips"
+      }
+    ],
+    "expected_tags": ["Lambda", "Cloud", "GPUs", "Financing"]
+  },
+  {
+    "id": "rag-019",
+    "type": "topic",
+    "query": "Why are venture capital firms and tech giants acquiring open-weight AI model builders?",
+    "expected_articles": [
+      {
+        "guid": "tc-open-weight-acquisitions",
+        "url": "https://techcrunch.com/2026/08/29/open-weight-acquisitions",
+        "title": "Open-weight AI companies are the Valley's hottest acquisition target"
+      }
+    ],
+    "expected_tags": ["Open Source", "Open-Weight", "M&A", "Venture Capital"]
+  },
+  {
+    "id": "rag-020",
+    "type": "paraphrased",
+    "query": "How is Nvidia expanding its moat beyond GPU silicon into networking and software stacks?",
+    "expected_articles": [
+      {
+        "guid": "tc-nvidia-beyond-gpu",
+        "url": "https://techcrunch.com/2026/08/29/nvidia-ai-advantage-beyond-gpu",
+        "title": "Nvidia's AI advantage is moving beyond the GPU"
+      }
+    ],
+    "expected_tags": ["Nvidia", "Networking", "Software", "CUDA"]
+  }
+]

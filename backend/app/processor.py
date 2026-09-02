@@ -1,13 +1,15 @@
-import json
 import logging
-from sqlalchemy.orm import Session
-from datetime import datetime, timezone
+import time
+from datetime import UTC, datetime
+
 from google import genai
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+from tenacity import retry, stop_after_attempt, wait_exponential
 
-from app.database import engine, SessionLocal
+from app.config import LLM_API_KEY, LLM_MODEL
+from app.database import SessionLocal
 from app.models import Content, ContentStatus
-from app.config import LLM_MODEL, LLM_API_KEY
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,12 +22,8 @@ class ArticleSummary(BaseModel):
     technical_complexity: int = Field(description="A score from 1 to 5 indicating how technical the article is (1=beginner, 5=highly advanced expert). 0 if is_appropriate_ai_news is False.")
     tags: list[str] = Field(description="3 to 5 tags or keywords relevant to the content. Empty list if is_appropriate_ai_news is False.")
 
-import time
 
 # ── Processing Logic ───────────────────────────────────────────────────────
-
-from tenacity import retry, wait_exponential, stop_after_attempt
-
 client = genai.Client(api_key=LLM_API_KEY)
 clean_model = LLM_MODEL.replace("gemini/", "") if "gemini/" in LLM_MODEL else LLM_MODEL
 
@@ -79,7 +77,7 @@ def process_pending_articles(limit: int = 10):
             # 2. Update the database record
             article.summary = structured_summary_json
             article.status = ContentStatus.PROCESSED
-            article.processed_at = datetime.now(timezone.utc)
+            article.processed_at = datetime.now(UTC)
             
             # Commit one by one so if one fails, we don't lose the others
             db.commit()

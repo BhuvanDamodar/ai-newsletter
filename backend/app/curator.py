@@ -1,7 +1,9 @@
-import logging
 import json
-from datetime import datetime, timezone, timedelta
+import logging
+from datetime import UTC, datetime, timedelta
+
 from sqlalchemy.orm import Session
+
 from app.database import SessionLocal
 from app.models import Content, ContentStatus, User
 
@@ -13,7 +15,7 @@ class ContentCurator:
 
     def get_recent_processed_content(self, db: Session):
         """Fetches all PROCESSED articles from the past 24 hours."""
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.time_window_hours)
+        cutoff_time = datetime.now(UTC) - timedelta(hours=self.time_window_hours)
         return db.query(Content).filter(
             Content.status == ContentStatus.PROCESSED,
             Content.processed_at >= cutoff_time

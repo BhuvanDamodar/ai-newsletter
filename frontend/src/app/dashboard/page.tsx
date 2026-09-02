@@ -55,6 +55,7 @@ export default function DashboardPage() {
   const [sources, setSources] = useState<{ id: number; name: string }[]>([]);
   const [tags, setTags] = useState<{ tag: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState("Loading AI news archive...");
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 12;
@@ -66,8 +67,36 @@ export default function DashboardPage() {
   const [selectedDays, setSelectedDays] = useState<number | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
+  // Hydrate from client cache immediately on mount for 0ms instant display
+  useEffect(() => {
+    try {
+      const cached = sessionStorage.getItem("briefly_dashboard_cache");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.articles && parsed.articles.length > 0) {
+          setArticles(parsed.articles);
+          setTotal(parsed.total || parsed.articles.length);
+          if (parsed.stats) setStats(parsed.stats);
+          if (parsed.sources) setSources(parsed.sources);
+          if (parsed.tags) setTags(parsed.tags);
+          setLoading(false);
+        }
+      }
+    } catch {
+      // Ignore cache parsing errors
+    }
+  }, []);
+
   const fetchArticles = useCallback(async () => {
-    setLoading(true);
+    if (articles.length === 0) {
+      setLoading(true);
+      setLoadingMessage("Loading AI news archive...");
+    }
+
+    const timer = setTimeout(() => {
+      setLoadingMessage("Connecting to AI news service — initial wake-up may take a few moments...");
+    }, 3500);
+
     try {
       const params = new URLSearchParams({
         page: page.toString(),
@@ -80,14 +109,28 @@ export default function DashboardPage() {
 
       const res = await fetch(`${API_URL}/api/articles?${params}`);
       const data = await res.json();
-      setArticles(data.articles);
-      setTotal(data.total);
+      if (data && data.articles) {
+        setArticles(data.articles);
+        setTotal(data.total);
+
+        // Cache page 1 baseline data
+        if (page === 1 && !searchQuery && !selectedSource && !selectedTag && !selectedDays) {
+          try {
+            const existingCache = JSON.parse(sessionStorage.getItem("briefly_dashboard_cache") || "{}");
+            sessionStorage.setItem(
+              "briefly_dashboard_cache",
+              JSON.stringify({ ...existingCache, articles: data.articles, total: data.total })
+            );
+          } catch {}
+        }
+      }
     } catch (err) {
       console.error("Failed to fetch articles:", err);
     } finally {
+      clearTimeout(timer);
       setLoading(false);
     }
-  }, [page, searchQuery, selectedSource, selectedTag, selectedDays]);
+  }, [page, searchQuery, selectedSource, selectedTag, selectedDays, articles.length]);
 
   useEffect(() => {
     fetchArticles();
@@ -102,9 +145,27 @@ export default function DashboardPage() {
           fetch(`${API_URL}/api/articles/sources`),
           fetch(`${API_URL}/api/articles/tags`),
         ]);
-        setStats(await statsRes.json());
-        setSources(await sourcesRes.json());
-        setTags(await tagsRes.json());
+        const statsData = await statsRes.json();
+        const sourcesData = await sourcesRes.json();
+        const tagsData = await tagsRes.json();
+
+        setStats(statsData);
+        setSources(sourcesData);
+        setTags(tagsData);
+
+        // Persist to session cache
+        try {
+          const existingCache = JSON.parse(sessionStorage.getItem("briefly_dashboard_cache") || "{}");
+          sessionStorage.setItem(
+            "briefly_dashboard_cache",
+            JSON.stringify({
+              ...existingCache,
+              stats: statsData,
+              sources: sourcesData,
+              tags: tagsData,
+            })
+          );
+        } catch {}
       } catch (err) {
         console.error("Failed to fetch metadata:", err);
       }
@@ -321,16 +382,41 @@ export default function DashboardPage() {
 
           {/* Article Grid */}
           {loading ? (
-            <div className="flex items-center justify-center py-20">
+            <div className="flex flex-col items-center justify-center py-24 gap-3">
               <Loader2 className="w-8 h-8 text-brand-400 animate-spin" />
+              <p className="text-sm font-medium text-brand-200 animate-pulse">
+                {loadingMessage}
+              </p>
             </div>
           ) : articles.length === 0 ? (
-            <div className="text-center py-20">
+            <div className="text-center py-20 glass-card rounded-2xl p-8 max-w-md mx-auto">
               <Newspaper className="w-12 h-12 text-text-muted mx-auto mb-4" />
-              <p className="text-text-muted text-lg">No articles found.</p>
-              <p className="text-text-muted/60 text-sm mt-1">
-                Try adjusting your filters or check back later.
-              </p>
+              <p className="text-text-muted text-lg font-medium">No articles found.</p>
+              {searchQuery || selectedSource || selectedTag || selectedDays ? (
+                <>
+                  <p className="text-text-muted/60 text-sm mt-1 mb-4">
+                    No articles match your active filter criteria.
+                  </p>
+                  <button
+                    onClick={clearFilters}
+                    className="px-4 py-2 bg-brand-500/20 hover:bg-brand-500/30 text-brand-300 text-sm rounded-lg transition-colors"
+                  >
+                    Reset Filters
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-text-muted/60 text-sm mt-1 mb-4">
+                    The backend archive is currently waking up or empty. Daily curation runs at 7:00 AM UTC.
+                  </p>
+                  <button
+                    onClick={fetchArticles}
+                    className="px-4 py-2 bg-brand-500/20 hover:bg-brand-500/30 text-brand-300 text-sm rounded-lg transition-colors"
+                  >
+                    Refresh Dashboard
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <motion.div
