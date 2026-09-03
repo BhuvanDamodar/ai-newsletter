@@ -10,6 +10,7 @@ from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 from tenacity import retry, stop_after_attempt, wait_fixed
 
+from app.config import ALLOWED_ORIGINS
 from app.database import Base, SessionLocal, engine
 from app.email_service import EmailDeliverer
 from app.main import pipeline_job
@@ -44,13 +45,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AI News API", version="1.0.0", lifespan=lifespan)
 
-# Setup CORS to allow Next.js local development frontend to communicate
+# Setup CORS with explicit allowed origins to ensure browsers don't reject credentialed/cross-origin requests
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Dependency to get a db session
@@ -248,8 +250,14 @@ def _parse_summary(summary_json: str | None) -> dict:
     if not summary_json:
         return {}
     try:
-        return json.loads(summary_json)
-    except json.JSONDecodeError:
+        data = json.loads(summary_json)
+        if not isinstance(data, dict):
+            return {}
+        comp = data.get("technical_complexity")
+        if not isinstance(comp, int) or comp < 1 or comp > 5:
+            data["technical_complexity"] = None
+        return data
+    except (json.JSONDecodeError, TypeError):
         return {}
 
 

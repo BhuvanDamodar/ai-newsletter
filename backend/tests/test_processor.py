@@ -13,17 +13,42 @@ class TestArticleSummarySchema:
 
     def test_valid_summary_parses(self):
         """A valid JSON response from Gemini should parse into ArticleSummary."""
-        data = {
+        for score in [1, 2, 3, 4, 5]:
+            data = {
+                "is_appropriate_ai_news": True,
+                "key_takeaway": "OpenAI released GPT-5.",
+                "summary_points": ["Point 1", "Point 2", "Point 3"],
+                "technical_complexity": score,
+                "tags": ["OpenAI", "LLMs", "GPT-5"],
+            }
+            summary = ArticleSummary(**data)
+            assert summary.is_appropriate_ai_news is True
+            assert summary.technical_complexity == score
+
+    def test_out_of_range_complexity_raises_validation_error(self):
+        """Out of range complexity values (<0 or >5) must raise ValidationError."""
+        import pytest
+        from pydantic import ValidationError
+
+        data_high = {
             "is_appropriate_ai_news": True,
-            "key_takeaway": "OpenAI released GPT-5.",
-            "summary_points": ["Point 1", "Point 2", "Point 3"],
-            "technical_complexity": 3,
-            "tags": ["OpenAI", "LLMs", "GPT-5"],
+            "key_takeaway": "High score",
+            "summary_points": ["Point 1"],
+            "technical_complexity": 10,
+            "tags": ["AI"],
         }
-        summary = ArticleSummary(**data)
-        assert summary.is_appropriate_ai_news is True
-        assert summary.technical_complexity == 3
-        assert len(summary.tags) == 3
+        with pytest.raises(ValidationError):
+            ArticleSummary(**data_high)
+
+        data_neg = {
+            "is_appropriate_ai_news": True,
+            "key_takeaway": "Negative score",
+            "summary_points": ["Point 1"],
+            "technical_complexity": -5,
+            "tags": ["AI"],
+        }
+        with pytest.raises(ValidationError):
+            ArticleSummary(**data_neg)
 
     def test_spam_summary_parses(self):
         """An inappropriate article summary should parse with empty fields."""

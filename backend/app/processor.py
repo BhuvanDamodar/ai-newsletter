@@ -3,7 +3,7 @@ import time
 from datetime import UTC, datetime
 
 from google import genai
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -19,8 +19,15 @@ class ArticleSummary(BaseModel):
     is_appropriate_ai_news: bool = Field(description="True if the article is relevant to Artificial Intelligence and does NOT contain vulgar/abusive language. False if it is spam, highly vulgar, or completely unrelated to AI.")
     key_takeaway: str = Field(description="A single sentence explaining the main point of the article. Empty string if is_appropriate_ai_news is False.")
     summary_points: list[str] = Field(description="3 to 5 bullet points summarizing the content. Empty list if is_appropriate_ai_news is False.")
-    technical_complexity: int = Field(description="A score from 1 to 5 indicating how technical the article is (1=beginner, 5=highly advanced expert). 0 if is_appropriate_ai_news is False.")
+    technical_complexity: int = Field(default=1, ge=0, le=5, description="A score from 1 to 5 indicating how technical the article is (1=beginner, 2=easy, 3=intermediate, 4=advanced, 5=expert). 0 if is_appropriate_ai_news is False.")
     tags: list[str] = Field(description="3 to 5 tags or keywords relevant to the content. Empty list if is_appropriate_ai_news is False.")
+
+    @field_validator("technical_complexity")
+    @classmethod
+    def validate_complexity(cls, v: int) -> int:
+        if v < 0 or v > 5:
+            return 1
+        return v
 
 
 # ── Processing Logic ───────────────────────────────────────────────────────
