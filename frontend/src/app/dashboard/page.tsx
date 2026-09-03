@@ -49,6 +49,13 @@ const complexityLabels: Record<number, { label: string; color: string }> = {
   5: { label: "Expert", color: "text-red-400" },
 };
 
+function getComplexityBadge(score: number | null | undefined): { label: string; color: string } {
+  if (typeof score === "number" && score >= 1 && score <= 5 && complexityLabels[score]) {
+    return complexityLabels[score];
+  }
+  return { label: "Not rated", color: "text-text-muted" };
+}
+
 export default function DashboardPage() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -472,18 +479,16 @@ export default function DashboardPage() {
                   {/* Footer */}
                   <div className="mt-auto flex items-center justify-between pt-3 border-t border-white/5">
                     {/* Complexity */}
-                    {article.technical_complexity && article.technical_complexity > 0 && (
-                      <div className="flex items-center gap-1.5">
-                        <Gauge className="w-3.5 h-3.5 text-text-muted" />
-                        <span
-                          className={`text-xs font-medium ${
-                            complexityLabels[article.technical_complexity]?.color || "text-text-muted"
-                          }`}
-                        >
-                          {complexityLabels[article.technical_complexity]?.label || "Unknown"}
-                        </span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      <Gauge className="w-3.5 h-3.5 text-text-muted" />
+                      <span
+                        className={`text-xs font-medium ${
+                          getComplexityBadge(article.technical_complexity).color
+                        }`}
+                      >
+                        {getComplexityBadge(article.technical_complexity).label}
+                      </span>
+                    </div>
 
                     {/* Read More */}
                     <a

@@ -276,3 +276,94 @@ class TestChat:
         """An empty query should return 400."""
         response = client.post("/api/chat", json={"query": "   "})
         assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# CORS Tests
+# ---------------------------------------------------------------------------
+
+class TestCORS:
+    def test_cors_allowed_vercel_origin(self, client):
+        """Requests from the production Vercel origin should include CORS headers."""
+        response = client.get(
+            "/api/health",
+            headers={"Origin": "https://briefly-ai-newsletter.vercel.app"},
+        )
+        assert response.status_code == 200
+        assert response.headers.get("access-control-allow-origin") == "https://briefly-ai-newsletter.vercel.app"
+        assert response.headers.get("access-control-allow-credentials") == "true"
+
+    def test_cors_preflight_options(self, client):
+        """OPTIONS preflight from allowed origin should return 200 with allow methods."""
+        response = client.options(
+            "/api/subscribe",
+            headers={
+                "Origin": "https://briefly-ai-newsletter.vercel.app",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+        assert response.status_code == 200
+        assert response.headers.get("access-control-allow-origin") == "https://briefly-ai-newsletter.vercel.app"
+        assert "POST" in response.headers.get("access-control-allow-methods", "")
+
+    def test_cors_disallowed_origin(self, client):
+        """Arbitrary unallowed origins should NOT receive access-control-allow-origin."""
+        response = client.get(
+            "/api/health",
+            headers={"Origin": "https://unauthorized-evil-domain.com"},
+        )
+        assert response.status_code == 200
+        assert "access-control-allow-origin" not in response.headers
+
+
+# ---------------------------------------------------------------------------
+# Complexity Serialization Tests
+# ---------------------------------------------------------------------------
+
+class TestComplexitySerialization:
+    def test_parse_summary_sanitizes_invalid_complexity(self, client, test_db, sample_source):
+        """Articles with 0, negative, or missing complexity should return None."""
+        import json
+
+        from app.models import Content, ContentStatus
+
+        # Article with 0 complexity (spam or unrated)
+        art_zero = Content(
+            source_id=sample_source.id,
+            guid="zero-001",
+            title="Zero Complexity Article",
+            url="https://example.com/zero",
+            status=ContentStatus.PROCESSED,
+            summary=json.dumps({
+                "key_takeaway": "Takeaway",
+                "summary_points": ["Point 1"],
+                "technical_complexity": 0,
+                "tags": ["AI"],
+            }),
+        )
+        # Article with valid 4 complexity
+        art_valid = Content(
+            source_id=sample_source.id,
+            guid="valid-001",
+            title="Valid Complexity Article",
+            url="https://example.com/valid",
+            status=ContentStatus.PROCESSED,
+            summary=json.dumps({
+                "key_takeaway": "Advanced",
+                "summary_points": ["Point 1"],
+                "technical_complexity": 4,
+                "tags": ["AI"],
+            }),
+        )
+        test_db.add_all([art_zero, art_valid])
+        test_db.commit()
+
+        response = client.get("/api/articles")
+        assert response.status_code == 200
+        items = response.json()["articles"]
+        zero_item = next(i for i in items if i["title"] == "Zero Complexity Article")
+        valid_item = next(i for i in items if i["title"] == "Valid Complexity Article")
+
+        assert zero_item["technical_complexity"] is None
+        assert valid_item["technical_complexity"] == 4

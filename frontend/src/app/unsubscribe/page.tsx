@@ -17,12 +17,12 @@ function UnsubscribeContent() {
     if (!email) return;
 
     setStatus("loading");
-    setLoadingMessage("Unsubscribing from daily digests...");
+    setLoadingMessage("Processing your unsubscribe request...");
     setMessage("");
 
     const timer = setTimeout(() => {
-      setLoadingMessage("Connecting to service - initial setup may take a few moments...");
-    }, 3500);
+      setLoadingMessage("Connecting to Briefly.ai — the first request may take a few moments...");
+    }, 3000);
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -132,7 +132,7 @@ function UnsubscribeContent() {
           <button
             disabled={status === "loading"}
             onClick={handleUnsubscribe}
-            className="w-full px-6 py-3.5 bg-red-500 hover:bg-red-600 disabled:opacity-50 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 text-white"
+            className="w-full px-6 py-3.5 bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-medium transition-colors flex items-center justify-center gap-2 text-white text-sm sm:text-base select-none"
           >
             {status === "loading" && <Loader2 className="w-4 h-4 animate-spin" />}
             Confirm Unsubscribe
