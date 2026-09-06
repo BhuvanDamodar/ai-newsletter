@@ -4,6 +4,7 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     Enum,
@@ -12,6 +13,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.sql import func
 
@@ -79,3 +81,19 @@ class PipelineRun(Base):
     digests_delivered = Column(Integer, default=0)
     error_count = Column(Integer, default=0)
     duration_seconds = Column(Float, default=0.0)
+
+
+class Feedback(Base):
+    """Stores per-user, per-article feedback reactions (+1 relevant, -1 not for me)."""
+    __tablename__ = "feedback"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    content_id = Column(Integer, ForeignKey("content.id", ondelete="CASCADE"), nullable=False, index=True)
+    rating = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "content_id", name="uq_user_content_feedback"),
+        CheckConstraint("rating IN (-1, 1)", name="chk_feedback_rating"),
+    )

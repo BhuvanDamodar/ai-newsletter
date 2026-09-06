@@ -24,6 +24,8 @@ services:
       - LLM_MODEL=${LLM_MODEL}
       - FROM_EMAIL=${FROM_EMAIL}
       - GMAIL_TOKEN_B64=${GMAIL_TOKEN_B64}
+      - FEEDBACK_TOKEN_SECRET=${FEEDBACK_TOKEN_SECRET}
+      - FRONTEND_URL=http://localhost:3000
     depends_on:
       db:
         condition: service_healthy
@@ -41,6 +43,8 @@ services:
       - LLM_MODEL=${LLM_MODEL}
       - FROM_EMAIL=${FROM_EMAIL}
       - GMAIL_TOKEN_B64=${GMAIL_TOKEN_B64}
+      - FEEDBACK_TOKEN_SECRET=${FEEDBACK_TOKEN_SECRET}
+      - FRONTEND_URL=http://localhost:3000
     depends_on:
       db:
         condition: service_healthy

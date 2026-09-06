@@ -50,7 +50,20 @@ frontend/coverage/
 # Backend
 backend/token.json
 backend/credentials.json
+backend/app/pipeline_state.json
+pipeline_state.json
 
+# Test & Lint Caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local data, logs, and scratch files
+scratch/
+*.log
+*.sqlite3
+*.db
 
 implementation*.md
 road*.md
