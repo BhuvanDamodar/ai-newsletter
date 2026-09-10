@@ -475,6 +475,11 @@ class TestFeedbackVerify:
         response = client.get("/api/feedback/verify?token=INVALID_TOKEN")
         assert response.status_code == 400
 
+    def test_verify_missing_token_returns_422(self, client):
+        """Missing token query parameter should return 422 Unprocessable Entity."""
+        response = client.get("/api/feedback/verify")
+        assert response.status_code == 422
+
     def test_verify_nonexistent_article_returns_404(self, client, test_db):
         """A valid token pointing to a nonexistent content_id should return 404."""
         from app.security import generate_feedback_token

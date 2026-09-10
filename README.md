@@ -30,7 +30,8 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
 ### Core User Capabilities
 1. **Personalized Daily Briefings** - Receive an automated email digest every morning curated specifically to your selected AI domains (LLMs, Robotics, AI Safety, Startups, Hardware, etc.).
 2. **Interactive News Dashboard** (`/dashboard`) - Filter, search, and browse the curated news archive by source, topic tags, publication date, and technical complexity (Beginner to Expert).
-3. **Conversational RAG Chat** (`/chat`) - Query the embedded AI news archive with natural language. Google Gemini answers questions grounded strictly in retrieved news articles, citing sources with interactive reference badges.
+3. **Conversational RAG Chat** (`/chat`) - Query the embedded AI news archive with natural language. Google Gemini answers using retrieved news articles as context, with source citations.
+4. **Adaptive Personalization & Feedback Learning** (`/feedback`) - Rate articles directly from your morning email digest (👍 Relevant / 👎 Not for me). Briefly.ai uses cryptographically signed tokens, a scanner-safe two-step confirmation screen, and a 60-day adaptive tag-affinity model based on explicit subscriber feedback to continuously refine your future briefings.
 
 > **Live Deployments:**
 > - **Frontend (Vercel):** [briefly-ai-newsletter.vercel.app](https://briefly-ai-newsletter.vercel.app/)
@@ -46,6 +47,14 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
   <img src="docs/screenshots/dashboard.png" alt="Briefly.ai News Dashboard" width="850" />
   <br />
   <em>Interactive News Dashboard with multi-dimensional filtering, stats cards, and technical complexity gauges.</em>
+</p>
+
+<br />
+
+<p align="center">
+  <img src="docs/screenshots/newsletter.png" alt="Briefly.ai Daily Digest with Feedback Actions" width="850" />
+  <br />
+  <em>Curated Daily Email Digest featuring executive takeaways, key bullet points, and 1-click adaptive feedback actions.</em>
 </p>
 
 <br />
@@ -72,12 +81,14 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
 - **8 Curated RSS Feeds:** Ingests TechCrunch AI, OpenAI Blog, Anthropic News, Google DeepMind, Hugging Face, MIT Tech Review, Reddit r/Artificial, and r/MachineLearning.
 - **Pydantic-Enforced Extraction:** Google Gemini 2.5 Flash extracts a single-sentence key takeaway, structured summary points, topic tags, and technical complexity scores (1–5).
 - **Automated Content Moderation:** Rejects spam, off-topic articles, and inappropriate submissions (`is_appropriate_ai_news`).
-- **Preference Scoring & Cross-Day Deduplication:** Ranks articles using preference keyword weighting (+5 per match, +1 base) and checks `DigestLog` to ensure subscribers never receive duplicate articles.
-- **Gmail REST API Integration:** Direct OAuth2 token delivery that avoids cloud SMTP port restrictions.
+- **Adaptive Personalization & Feedback Learning:** Blends explicit user preferences (+5 per keyword match) with learned tag affinities ($\pm 2$ per tag) aggregated over a **60-day historical feedback window**. Applies conservative tag canonicalization (`normalize_tag`) and clamps learned affinity to $[-4, +4]$ to reduce the risk of runaway topic reinforcement and filter bubbles while preserving explainability.
+- **Cross-Day Deduplication:** Cross-references `DigestLog` to ensure active subscribers never receive duplicate articles across consecutive daily briefings.
+- **Cryptographically Signed Email Delivery:** Uses `itsdangerous.URLSafeTimedSerializer` with 30-day TTL to generate signed feedback links (`like_url`, `dislike_url`), rendering responsive email-safe pill buttons delivered via the authenticated **Gmail REST API**.
 
 ### Interactive Web Platform
 - **News Dashboard (`/dashboard`):** Real-time search across titles, multi-filter drawer (Source, Tag frequency counts, Date ranges), and pagination.
 - **Conversational RAG Engine (`/chat`):** Vector search over 3072-dimensional embeddings with cosine similarity (`<=>`), prompt grounding, and interactive citation badges `[Article N]`.
+- **Scanner-Resistant Feedback Confirmation (`/feedback`):** Two-step ingestion architecture separating read-only token verification (`GET /api/feedback/verify`) from state mutation (`POST /api/feedback/confirm`), which reduces the risk of unintended feedback from automated email link scanners.
 - **Graceful Performance Handling:** Speculative pre-warming on initial load, client session caching for instant page transitions, and progressive status indicators during cold boots.
 
 ---
@@ -97,7 +108,8 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
 │                                        │  │ 1. Scrape   ─► RSS ×8     │  │  │
 │                                        │  │ 2. Process  ─► Gemini 2.5 │  │  │
 │                                        │  │ 2.5. Embed  ─► pgvector   │  │  │
-│                                        │  │ 3. Curate   ─► Score      │  │  │
+│                                        │  │ 3. Curate   ─► Score +    │  │  │
+│                                        │  │                Tag Learn  │  │  │
 │                                        │  │ 4. Deliver  ─► Gmail API  │  │  │
 │                                        │  └─────────────┬─────────────┘  │  │
 │                                        │                │                │  │
@@ -106,12 +118,16 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
 │   │ Next.js      │ ◄── Search/Chat ──► │  │    Query Embed ─► Cosine  │  │  │
 │   │ App Router   │     /api/articles   │  │    Search ─► Grounded Gen │  │  │
 │   │ (Vercel)     │     /api/chat       │  └─────────────┬─────────────┘  │  │
-│   └──────────────┘                     └────────────────┼────────────────┘  │
-│                                                         │                   │
-│                                              ┌──────────▼──────────┐        │
-│                                              │   Neon PostgreSQL   │        │
-│                                              │   + pgvector (3072) │        │
-│                                              └─────────────────────┘        │
+│   │              │                     │                │                │  │
+│   │              │ ◄── Verify/Confirm─►│  ┌─────────────▼─────────────┐  │  │
+│   │ /feedback    │     /api/feedback   │  │ Security & Token Engine   │  │  │
+│   │ Landing      │                     │  │ (itsdangerous URLSafe)    │  │  │
+│   └──────────────┘                     └────────┬───────┼────────────────┘  │
+│                                                 │       │                   │
+│                                      ┌──────────▼┐      ┌──────────▼──────────┐
+│                                      │ Feedback  │      │   Neon PostgreSQL   │
+│                                      │ Table     │      │   + pgvector (3072) │
+│                                      └───────────┘      └─────────────────────┘
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -123,9 +139,10 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
 | **2. Parse** | `backend/app/scraper/rss_scraper.py` | Fetches RSS feeds, deduplicates by GUID, and writes `PENDING_PROCESSING` records. |
 | **3. Summarize** | `backend/app/processor.py` | Prompts **Gemini 2.5 Flash** with Pydantic schema validation (`ArticleSummary`), generating takeaways, points, tags, and spam flags with exponential backoff. |
 | **3.5. Embed** | `backend/app/embedder.py` | Combines `title \| takeaway \| points \| tags` into semantic text, generates **3072-dimensional dense vectors** via `gemini-embedding-001`, and persists them to PostgreSQL via `pgvector`. |
-| **4. Curate** | `backend/app/curator.py` | Scores processed articles against user keyword preferences and cross-references `DigestLog` for deduplication. |
-| **5. Deliver** | `backend/app/email_service.py` | Renders personalized HTML digests using Jinja2 (`digest.html`), delivering via authenticated **Gmail REST API**. |
+| **4. Curate** | `backend/app/curator.py` | Scores candidate articles using explicit keyword preferences (+5 per match, +1 base) and **60-day historical feedback tag affinities ($\pm 2$ per tag, clamped $[-4, +4]$)** with conservative canonicalization (`normalize_tag`), cross-referencing `DigestLog` for deduplication. |
+| **5. Deliver** | `backend/app/email_service.py` & `security.py` | Signs 30-day feedback tokens with `itsdangerous`, renders responsive HTML digests with email-safe pill buttons (`digest.html`), and delivers via authenticated **Gmail REST API**. |
 | **6. RAG Engine** | `backend/app/rag.py` | Embeds user queries, executes vector cosine distance search (`<=>`), constructs grounded context, and prompts Gemini to cite `[Article N]`. |
+| **7. Feedback Ingestion** | `backend/app/api.py` & `frontend/.../feedback` | Two-step anti-scanner flow: non-mutating `GET /api/feedback/verify` decodes article info; user confirmation triggers `POST /api/feedback/confirm` with idempotent upsert into `Feedback` table. |
 
 ---
 
@@ -135,7 +152,9 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
 |---|---|---|---|
 | **Vector Storage** | **PostgreSQL + `pgvector` (3072 dims)** | Pinecone, Qdrant, Chroma | Eliminates multi-database sync issues by keeping relational metadata, user preferences, digest history, and vector embeddings in a single ACID-compliant PostgreSQL instance. |
 | **RAG Pipeline Architecture** | **Direct Custom Pipeline (`rag.py`)** | LangChain, LlamaIndex | Built a transparent, lightweight RAG chain directly using Google GenAI SDK and SQLAlchemy. Retains complete control over prompt construction, latency measurement, and citation grounding. |
-| **Two-Tier Testing Strategy** | **In-memory SQLite + PostgreSQL CI container (59 tests)** | Pure SQLite or Pure Postgres | Custom `@compiles(Vector, "sqlite")` handler enables 54 unit tests to run locally and offline in ~1.5 seconds, while GitHub Actions CI validates pgvector operators (`<=>`) against a live `pgvector/pgvector:pg17` container (5 integration tests). |
+| **Feedback Ingestion & Scanner Defense** | **Two-Step Confirmation (`GET /verify` $\to$ `POST /confirm`)** | Single-click mutating GET endpoint | Enterprise anti-spam scanners (Microsoft Defender SafeLinks, Mimecast, Gmail pre-fetchers) automatically fetch every link in incoming emails. A direct mutating `GET` endpoint causes bots to vote on every article, wrecking user personalization. The read-only verification request uses GET, while explicit user confirmation uses POST for the state-changing operation, preventing automated link scanners from recording feedback. |
+| **Bounded Feedback Personalization** | **$[-4, +4]$ Clamp on Learned Tag Affinity** | Unbounded linear weights, collaborative filtering | Unbounded tag accumulation creates runaway filter bubbles where a single topic dominates recommendations forever. Bounding learned affinity to $[-4, +4]$ ensures implicit feedback strongly shapes ranking ($\pm 2$ per tag) without overriding explicit user topic choices ($+5$) or extinguishing serendipitous news discovery. |
+| **Two-Tier Testing Strategy** | **In-memory SQLite + PostgreSQL CI container (90 tests)** | Pure SQLite or Pure Postgres | Custom `@compiles(Vector, "sqlite")` handler enables 82 SQLite-based unit/integration tests to run locally and offline in ~2 seconds, while GitHub Actions CI validates pgvector operators (`<=>`) and relational constraints (`CHECK`, `CASCADE`) against a live `pgvector/pgvector:pg17` container (8 PostgreSQL integration tests). |
 | **Free-Tier Cold-Start Handling** | **Speculative Pre-Warming & Client Session Caching** | Paid warm instances, fake optimistic UI | Accepts serverless/free-tier cold boots as an infrastructure constraint and mitigates user impact through background health pings (`Navbar.tsx`), session storage caching, and multi-stage loading feedback. |
 | **Stateful Telemetry** | **`PipelineRun` Database Table** | In-memory globals | Persists daily pipeline execution metrics, duration, and error counts directly into PostgreSQL so that telemetry survives server sleep and restarts. |
 
@@ -146,11 +165,11 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
 | Layer | Technologies |
 |---|---|
 | **Frontend** | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, Framer Motion, Lucide Icons |
-| **Backend API** | Python 3.12, FastAPI, Uvicorn, SQLAlchemy ORM, Pydantic v2, Tenacity, Ruff |
+| **Backend API** | Python 3.12, FastAPI, Uvicorn, SQLAlchemy ORM, Pydantic v2, itsdangerous, Tenacity, Ruff |
 | **AI / LLM** | Google Gemini 2.5 Flash (`gemini-2.5-flash`), Gemini Embedding (`gemini-embedding-001`, 3072 dims) |
 | **Vector Database** | PostgreSQL 17 + `pgvector` extension (Docker `pgvector/pgvector:pg17` local / Neon serverless) |
 | **Email Delivery** | Gmail REST API (`google-api-python-client`), Jinja2 HTML templates |
-| **Testing & CI** | Pytest (59 tests), HTTPX, GitHub Actions (CI & daily cron) |
+| **Testing & CI** | Pytest (90 tests: 82 SQLite-based unit/integration tests + 8 PostgreSQL integration tests), HTTPX, GitHub Actions (CI & daily cron) |
 | **Deployment** | Render (Web Service), Vercel (Frontend), Neon (Database), Docker |
 
 ---
@@ -180,7 +199,7 @@ uv run python -m tests.rag_eval.evaluate_rag
 
 ## Testing & Quality Assurance
 
-The test suite combines fast local SQLite emulation with live PostgreSQL + pgvector integration testing (59 tests total):
+The test suite combines fast local SQLite emulation with live PostgreSQL + pgvector integration testing (90 tests total):
 
 ```bash
 cd backend
@@ -195,12 +214,12 @@ uv run ruff check .
 
 | Test Module | Coverage Area |
 |---|---|
-| [`test_curator.py`](backend/tests/test_curator.py) | User preference scoring (+5 per topic match, +1 base), spam filtering (`is_appropriate_ai_news`), top-N selection, and `DigestLog` deduplication. |
+| [`test_curator.py`](backend/tests/test_curator.py) | User preference scoring (+5), spam filtering, top-N selection, `DigestLog` deduplication, tag canonicalization (`normalize_tag`), 60-day historical feedback aggregation, positive/negative affinity scoring, $[-4, +4]$ boundary clamping, explicit preference dominance, explainable score breakdowns, and multi-user isolation. |
 | [`test_processor.py`](backend/tests/test_processor.py) | Pydantic schema validation, LLM prompt formatting, state transitions (`PENDING` $\to$ `PROCESSED` / `FAILED`), text clipping (>15k chars), and 429 rate limit backoff. |
 | [`test_embedder.py`](backend/tests/test_embedder.py) | Text construction (`title \| takeaway \| points \| tags`), pipe-separated formatting, 48-hour cutoff window filter. |
 | [`test_rag.py`](backend/tests/test_rag.py) | Context builder numbering `[Article N]`, section dividers, empty article fallback, and grounded generation with source citations. |
-| [`test_api.py`](backend/tests/test_api.py) | Full FastAPI endpoint integration tests: `/api/health`, `/api/status`, `/api/cron/trigger`, `/api/subscribe`, preference fetching, unsubscription (`POST` and `GET`), article pagination, search filters, stats aggregation, `/api/chat`, CORS preflights and allowed/disallowed origins, and complexity serialization. |
-| [`test_pgvector_integration.py`](backend/tests/test_pgvector_integration.py) | Live PostgreSQL tests: pgvector extension check, 3072-d insertion, dimension mismatch rejection, cosine distance ranking, and `PipelineRun` table persistence. |
+| [`test_api.py`](backend/tests/test_api.py) | Full FastAPI endpoint integration tests: `/api/health`, `/api/status`, `/api/cron/trigger`, `/api/subscribe`, preference fetching, unsubscription (`POST` and `GET`), article pagination, search filters, stats aggregation, `/api/chat`, CORS preflights and allowed/disallowed origins, complexity serialization, token cryptographic round-trips, tampering/expiry rejection, `/api/feedback/verify`, `/api/feedback/confirm` idempotent upsert, inactive user rejection, and 404 nonexistent content. |
+| [`test_pgvector_integration.py`](backend/tests/test_pgvector_integration.py) | Live PostgreSQL tests: pgvector extension check, 3072-d insertion, dimension mismatch rejection, cosine distance ranking, `PipelineRun` table persistence, `Feedback` table schema creation, `rating IN (-1, 1)` DB check constraint enforcement, and `CASCADE` deletion on user removal. |
 
 ---
 
@@ -213,7 +232,7 @@ Push / Pull Request
         │
         ├──► 1. backend-test (Ubuntu + Python 3.12 via uv + pgvector:pg17 container)
         │       • Ruff linter (checks code style & syntax)
-        │       • Pytest suite (54 SQLite unit tests + 5 live PostgreSQL tests = 59 total)
+        │       • Pytest suite (82 SQLite-based unit/integration tests + 8 live PostgreSQL tests = 90 total)
         │       • Production Docker build verification (docker build backend)
         │
         └──► 2. frontend-build (Ubuntu + Node.js 20)
@@ -230,6 +249,8 @@ Deployment to production environments (Render for FastAPI, Vercel for Next.js) p
 - **Structured JSON Logging:** Enabled in production (`RENDER=true`). Outputs single-line JSON logs formatted for cloud log aggregators.
 - **Pipeline Health & Telemetry (`/api/status`):** Queries persisted `PipelineRun` records from PostgreSQL to survive server restarts, tracking execution status, article counts, duration, and error counts without exposing internal stack traces.
 - **Automated Failure Alerts:** If an unhandled exception occurs during the daily pipeline run, an operational failure report with stack traces and timestamps is automatically dispatched to `ALERT_EMAIL` via the authenticated Gmail API.
+- **Tamper-Resistant Feedback Cryptography:** Feedback tokens use `itsdangerous.URLSafeTimedSerializer` with a 30-day expiration, signing `user_id`, `content_id`, and `rating` to detect and reject modified or forged feedback tokens.
+- **Cross-Client Email Styling:** Digest templates use inline CSS and structured containers so pill-shaped feedback buttons render consistently across Outlook, Gmail, and mobile email clients without layout collapse.
 - **Cold-Start Resilience:**
   - *Speculative Pre-Warming:* `Navbar.tsx` fires a non-blocking `GET /api/health` ping once per session on initial interaction.
   - *Client Session Cache:* Returning navigation within the same browser session renders cached dashboard data immediately while the application refreshes it in the background.
@@ -250,27 +271,28 @@ ai-news/
 │   │   ├── api.py                  # FastAPI REST, Dashboard, Status & RAG endpoints
 │   │   ├── config.py               # Environment configuration & defaults
 │   │   ├── database.py             # SQLAlchemy session & pgvector extension init
-│   │   ├── models.py               # ORM Models (User, Source, Content, DigestLog, PipelineRun)
+│   │   ├── models.py               # ORM Models (User, Source, Content, DigestLog, PipelineRun, Feedback)
+│   │   ├── security.py             # Cryptographic token serializer & validator (itsdangerous)
 │   │   ├── pipeline_state.py       # Pipeline execution tracker & DB persister
 │   │   ├── processor.py            # Gemini summarization & Pydantic validation
 │   │   ├── embedder.py             # 3072-dim vector embedding generator (gemini-embedding-001)
 │   │   ├── rag.py                  # Custom RAG chain (embed query -> cosine search -> answer)
-│   │   ├── curator.py              # User preference scoring & cross-day deduplication
-│   │   ├── email_service.py        # Gmail API delivery & Jinja2 rendering
+│   │   ├── curator.py              # Adaptive preference scoring & 60-day tag affinity learning
+│   │   ├── email_service.py        # Gmail API delivery, signed tokens & Jinja2 rendering
 │   │   ├── scraper/
 │   │   │   ├── orchestrator.py     # Source seeding & runner dispatch
 │   │   │   └── rss_scraper.py      # RSS feed fetching and parsing
 │   │   └── templates/
-│   │       ├── digest.html         # Daily digest email template
+│   │       ├── digest.html         # Daily digest email template with feedback action card
 │   │       └── welcome.html        # Welcome email template
 │   └── tests/
 │       ├── conftest.py             # SQLite fixtures, @compiles(Vector, "sqlite"), mock factories
-│       ├── test_api.py             # FastAPI REST & RAG endpoint tests
-│       ├── test_curator.py         # Scoring & deduplication tests
+│       ├── test_api.py             # FastAPI REST, RAG & Feedback endpoint tests
+│       ├── test_curator.py         # Scoring, tag canonicalization & adaptive learning tests
 │       ├── test_processor.py       # Pydantic summary schema & status transition tests
 │       ├── test_embedder.py        # Semantic text building & 48h cutoff tests
 │       ├── test_rag.py             # Context building & grounded generation tests
-│       ├── test_pgvector_integration.py # Real PostgreSQL + pgvector integration tests
+│       ├── test_pgvector_integration.py # Real PostgreSQL + pgvector & Feedback integration tests
 │       └── rag_eval/
 │           ├── eval_dataset.json   # 20 curated gold test queries across 5 categories
 │           ├── generate_candidates.py # Semi-automated candidate question generator
@@ -288,6 +310,8 @@ ai-news/
 │       │   └── page.tsx            # News dashboard with search, filters & client session cache
 │       ├── chat/
 │       │   └── page.tsx            # Conversational RAG chat with progressive status indicators
+│       ├── feedback/
+│       │   └── page.tsx            # Scanner-safe two-step feedback confirmation screen
 │       └── unsubscribe/
 │           └── page.tsx            # Confirmed unsubscription screen
 ├── docs/
@@ -329,11 +353,12 @@ DATABASE_URL=postgresql://ainews_user:ainews_password@db:5432/ainews
 LLM_API_KEY=your_gemini_api_key
 LLM_MODEL=gemini-2.5-flash
 
-# ── Email Delivery (Optional) ──
+# ── Email Delivery & Security ──
 FROM_EMAIL=your_email@gmail.com
 GMAIL_TOKEN_B64=your_base64_oauth_token
 ALERT_EMAIL=your_email@gmail.com
 CRON_SECRET=your_secure_cron_secret
+FEEDBACK_TOKEN_SECRET=your_secure_feedback_secret
 
 # ── Frontend & API URLs ──
 FRONTEND_URL=http://localhost:3000
@@ -373,7 +398,9 @@ This starts all four services:
 | `POST` | `/api/cron/trigger` | Triggers the ingestion, processing, embedding, and delivery pipeline in the background (supports `Authorization: Bearer <secret>`). |
 | `POST` | `/api/subscribe` | Subscribes an email with selected topic keywords and sends a welcome digest. |
 | `GET` | `/api/preferences/{email}` | Fetches stored topic preferences for an email. |
-| `POST` | `/api/unsubscribe` | Confirms unsubscription and deactivates the user record (supports JSON `{ "email": "..." }` or `GET ?email=...`). |
+| `POST` | `/api/unsubscribe` | Confirms unsubscription and deactivates the user record (accepts JSON `{ "email": "..." }`). Also accepts legacy `GET ?email=...` for one-click email client compatibility. |
+
+> **Security Note on Unsubscribe Links:** While state-changing operations natively use `POST`, `GET /api/unsubscribe?email=...` is currently supported for one-click email reader compatibility. Transitioning unsubscribe links to cryptographically signed tokens (matching the Phase 5 feedback token model) will deprecate exposing raw subscriber emails in query parameters.
 
 ### Dashboard & RAG Endpoints
 | Method | Endpoint | Description |
@@ -383,6 +410,12 @@ This starts all four services:
 | `GET` | `/api/articles/sources` | Returns active RSS source names for filter selectors. |
 | `GET` | `/api/articles/tags` | Extracted and sorted topic tag frequency counts. |
 | `POST` | `/api/chat` | Conversational RAG query endpoint (`{ "query": "..." }`) returning grounded answers and source metadata. |
+
+### Feedback & Personalization
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/feedback/verify` | Decodes and cryptographically verifies the feedback token, returning article metadata (title, URL, rating) without database mutation (safe against automated email scanners). |
+| `POST` | `/api/feedback/confirm` | Confirms user feedback, validating token signature and performing an idempotent upsert into the `Feedback` table (`rating IN (-1, 1)`). |
 
 ---
 
@@ -403,4 +436,19 @@ Briefly.ai is designed to operate within available free tiers for portfolio-scal
 > ```sql
 > CREATE EXTENSION IF NOT EXISTS vector;
 > ALTER TABLE content ADD COLUMN IF NOT EXISTS embedding vector(3072);
+> 
+> -- Feedback Table (Phase 5)
+> CREATE TABLE IF NOT EXISTS feedback (
+>     id SERIAL PRIMARY KEY,
+>     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+>     content_id INTEGER NOT NULL REFERENCES content(id) ON DELETE CASCADE,
+>     rating INTEGER NOT NULL,
+>     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+>     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+>     CONSTRAINT uq_user_content_feedback UNIQUE (user_id, content_id),
+>     CONSTRAINT chk_feedback_rating CHECK (rating IN (-1, 1))
+> );
+> 
+> CREATE INDEX IF NOT EXISTS ix_feedback_user_id ON feedback(user_id);
+> CREATE INDEX IF NOT EXISTS ix_feedback_content_id ON feedback(content_id);
 > ```
