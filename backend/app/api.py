@@ -14,7 +14,7 @@ from app.config import ALLOWED_ORIGINS
 from app.database import Base, SessionLocal, engine
 from app.email_service import EmailDeliverer
 from app.main import pipeline_job
-from app.models import Content, ContentStatus, Source, User
+from app.models import Content, ContentStatus, Feedback, Source, User
 
 logger = logging.getLogger(__name__)
 
@@ -385,4 +385,95 @@ def chat_with_news(request: ChatRequest):
     except Exception as e:
         logger.error(f"Chat endpoint error: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate a response. Please try again.")
+
+
+# --- Phase 5 API Endpoints: Feedback Ingestion ---
+
+class FeedbackConfirmRequest(BaseModel):
+    token: str
+
+
+@app.get("/api/feedback/verify")
+def verify_feedback(token: str = Query(...), db: Session = Depends(get_db)):
+    """Non-mutating verification step: decodes the signed token and returns
+    article metadata without writing to the database. Safe for email scanners
+    and link pre-fetchers."""
+    from itsdangerous import BadSignature, SignatureExpired
+
+    from app.security import verify_feedback_token
+
+    try:
+        data = verify_feedback_token(token)
+    except SignatureExpired:
+        raise HTTPException(status_code=400, detail="This feedback link has expired (30-day limit).")
+    except BadSignature:
+        raise HTTPException(status_code=400, detail="Invalid or tampered feedback token.")
+
+    article = db.query(Content).filter(Content.id == data["content_id"]).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found.")
+
+    return {
+        "valid": True,
+        "article_title": article.title,
+        "article_url": article.url,
+        "rating": data["rating"],
+    }
+
+
+@app.post("/api/feedback/confirm")
+def confirm_feedback(payload: FeedbackConfirmRequest, db: Session = Depends(get_db)):
+    """Confirmation step: cryptographically verifies the token and performs
+    an idempotent upsert into the Feedback table."""
+    from itsdangerous import BadSignature, SignatureExpired
+
+    from app.security import verify_feedback_token
+
+    try:
+        data = verify_feedback_token(payload.token)
+    except SignatureExpired:
+        raise HTTPException(status_code=400, detail="This feedback link has expired (30-day limit).")
+    except BadSignature:
+        raise HTTPException(status_code=400, detail="Invalid or tampered feedback token.")
+
+    user_id = data["user_id"]
+    content_id = data["content_id"]
+    rating = data["rating"]
+
+    # Validate user exists and is active
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="User account is inactive.")
+
+    # Validate article exists
+    article = db.query(Content).filter(Content.id == content_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found.")
+
+    # Idempotent upsert: update if exists, create if not
+    existing = db.query(Feedback).filter(
+        Feedback.user_id == user_id,
+        Feedback.content_id == content_id,
+    ).first()
+
+    if existing:
+        existing.rating = rating
+        db.commit()
+        db.refresh(existing)
+    else:
+        feedback = Feedback(
+            user_id=user_id,
+            content_id=content_id,
+            rating=rating,
+        )
+        db.add(feedback)
+        db.commit()
+
+    return {
+        "status": "success",
+        "message": "Feedback recorded",
+        "rating": rating,
+    }
 

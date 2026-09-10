@@ -1,4 +1,4 @@
-"""Tests for the FastAPI endpoints: health, subscription, articles, stats, and chat."""
+"""Tests for the FastAPI endpoints: health, subscription, articles, stats, chat, and feedback."""
 
 from datetime import UTC
 from unittest.mock import patch
@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.api import app, get_db
 from app.database import Base
-from app.models import Content, ContentSourceType, ContentStatus, Source
+from app.models import Content, ContentSourceType, ContentStatus, Feedback, Source, User
 from tests.conftest import SAMPLE_SUMMARY
 
 # ---------------------------------------------------------------------------
@@ -367,3 +367,234 @@ class TestComplexitySerialization:
 
         assert zero_item["technical_complexity"] is None
         assert valid_item["technical_complexity"] == 4
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: Token Cryptography Tests
+# ---------------------------------------------------------------------------
+
+class TestTokenCryptography:
+    """Tests for feedback token generation, verification, and tampering rejection."""
+
+    def test_valid_token_round_trip(self):
+        """A freshly generated token should verify successfully."""
+        from app.security import generate_feedback_token, verify_feedback_token
+
+        token = generate_feedback_token(user_id=1, content_id=42, rating=1)
+        data = verify_feedback_token(token)
+        assert data["user_id"] == 1
+        assert data["content_id"] == 42
+        assert data["rating"] == 1
+
+    def test_negative_rating_token(self):
+        """Tokens with rating=-1 should also round-trip correctly."""
+        from app.security import generate_feedback_token, verify_feedback_token
+
+        token = generate_feedback_token(user_id=5, content_id=99, rating=-1)
+        data = verify_feedback_token(token)
+        assert data["rating"] == -1
+
+    def test_tampered_token_rejected(self):
+        """A modified token string should raise BadSignature."""
+        from itsdangerous import BadSignature
+
+        from app.security import generate_feedback_token, verify_feedback_token
+
+        token = generate_feedback_token(user_id=1, content_id=1, rating=1)
+        tampered = token + "TAMPERED"
+        with pytest.raises(BadSignature):
+            verify_feedback_token(tampered)
+
+    def test_expired_token_rejected(self):
+        """A token older than 30 days should raise SignatureExpired."""
+        from unittest.mock import patch as mock_patch
+
+        from itsdangerous import SignatureExpired
+
+        from app.security import generate_feedback_token, verify_feedback_token
+
+        token = generate_feedback_token(user_id=1, content_id=1, rating=1)
+
+        # Fast-forward the clock by 31 days
+        import time
+        with mock_patch("time.time", return_value=time.time() + 31 * 24 * 60 * 60):
+            with pytest.raises(SignatureExpired):
+                verify_feedback_token(token)
+
+    def test_invalid_rating_rejected(self):
+        """generate_feedback_token should reject ratings other than -1 or 1."""
+        from app.security import generate_feedback_token
+
+        with pytest.raises(ValueError):
+            generate_feedback_token(user_id=1, content_id=1, rating=0)
+        with pytest.raises(ValueError):
+            generate_feedback_token(user_id=1, content_id=1, rating=2)
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: Feedback Ingestion API Tests
+# ---------------------------------------------------------------------------
+
+class TestFeedbackVerify:
+    """Tests for GET /api/feedback/verify (non-mutating step)."""
+
+    def test_verify_valid_token(self, client, test_db):
+        """Valid token should return article metadata without writing to DB."""
+        from app.security import generate_feedback_token
+
+        # Seed a user and article
+        source = Source(name="TestSrc", source_type=ContentSourceType.RSS, url_or_id="https://test.com/feed", is_active=True)
+        test_db.add(source)
+        test_db.flush()
+
+        user = User(email="verify@test.com", preferences=[], is_active=True)
+        test_db.add(user)
+        test_db.flush()
+
+        article = Content(
+            source_id=source.id, guid="verify-001", title="Test Verify Article",
+            url="https://example.com/verify", status=ContentStatus.PROCESSED, summary=SAMPLE_SUMMARY,
+        )
+        test_db.add(article)
+        test_db.commit()
+
+        token = generate_feedback_token(user.id, article.id, rating=1)
+        response = client.get(f"/api/feedback/verify?token={token}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["valid"] is True
+        assert data["article_title"] == "Test Verify Article"
+        assert data["rating"] == 1
+
+        # Verify NO feedback was written to DB
+        fb_count = test_db.query(Feedback).count()
+        assert fb_count == 0
+
+    def test_verify_tampered_token_returns_400(self, client, test_db):
+        """A tampered token should return 400."""
+        response = client.get("/api/feedback/verify?token=INVALID_TOKEN")
+        assert response.status_code == 400
+
+    def test_verify_missing_token_returns_422(self, client):
+        """Missing token query parameter should return 422 Unprocessable Entity."""
+        response = client.get("/api/feedback/verify")
+        assert response.status_code == 422
+
+    def test_verify_nonexistent_article_returns_404(self, client, test_db):
+        """A valid token pointing to a nonexistent content_id should return 404."""
+        from app.security import generate_feedback_token
+
+        token = generate_feedback_token(user_id=1, content_id=99999, rating=1)
+        response = client.get(f"/api/feedback/verify?token={token}")
+        assert response.status_code == 404
+
+
+class TestFeedbackConfirm:
+    """Tests for POST /api/feedback/confirm (mutating step)."""
+
+    def test_confirm_creates_feedback(self, client, test_db):
+        """Valid confirm should create a Feedback entry in the database."""
+        from app.security import generate_feedback_token
+
+        source = Source(name="ConfSrc", source_type=ContentSourceType.RSS, url_or_id="https://test.com/feed", is_active=True)
+        test_db.add(source)
+        test_db.flush()
+
+        user = User(email="confirm@test.com", preferences=[], is_active=True)
+        test_db.add(user)
+        test_db.flush()
+
+        article = Content(
+            source_id=source.id, guid="confirm-001", title="Confirm Article",
+            url="https://example.com/confirm", status=ContentStatus.PROCESSED, summary=SAMPLE_SUMMARY,
+        )
+        test_db.add(article)
+        test_db.commit()
+
+        token = generate_feedback_token(user.id, article.id, rating=1)
+        response = client.post("/api/feedback/confirm", json={"token": token})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert data["rating"] == 1
+
+        # Verify feedback was written
+        fb = test_db.query(Feedback).filter(Feedback.user_id == user.id).first()
+        assert fb is not None
+        assert fb.rating == 1
+
+    def test_confirm_idempotent_upsert(self, client, test_db):
+        """Confirming the same user+article twice should update, not duplicate."""
+        from app.security import generate_feedback_token
+
+        source = Source(name="UpsertSrc", source_type=ContentSourceType.RSS, url_or_id="https://test.com/feed", is_active=True)
+        test_db.add(source)
+        test_db.flush()
+
+        user = User(email="upsert@test.com", preferences=[], is_active=True)
+        test_db.add(user)
+        test_db.flush()
+
+        article = Content(
+            source_id=source.id, guid="upsert-001", title="Upsert Article",
+            url="https://example.com/upsert", status=ContentStatus.PROCESSED, summary=SAMPLE_SUMMARY,
+        )
+        test_db.add(article)
+        test_db.commit()
+
+        # First: like
+        token_like = generate_feedback_token(user.id, article.id, rating=1)
+        response1 = client.post("/api/feedback/confirm", json={"token": token_like})
+        assert response1.status_code == 200
+
+        # Second: change to dislike
+        token_dislike = generate_feedback_token(user.id, article.id, rating=-1)
+        response2 = client.post("/api/feedback/confirm", json={"token": token_dislike})
+        assert response2.status_code == 200
+
+        # Should be exactly 1 feedback entry, with updated rating
+        fbs = test_db.query(Feedback).filter(
+            Feedback.user_id == user.id, Feedback.content_id == article.id
+        ).all()
+        assert len(fbs) == 1
+        assert fbs[0].rating == -1
+
+    def test_confirm_inactive_user_returns_403(self, client, test_db):
+        """Inactive users should get 403 Forbidden."""
+        from app.security import generate_feedback_token
+
+        source = Source(name="InactiveSrc", source_type=ContentSourceType.RSS, url_or_id="https://test.com/feed", is_active=True)
+        test_db.add(source)
+        test_db.flush()
+
+        user = User(email="inactive@test.com", preferences=[], is_active=False)
+        test_db.add(user)
+        test_db.flush()
+
+        article = Content(
+            source_id=source.id, guid="inactive-001", title="Inactive Article",
+            url="https://example.com/inactive", status=ContentStatus.PROCESSED, summary=SAMPLE_SUMMARY,
+        )
+        test_db.add(article)
+        test_db.commit()
+
+        token = generate_feedback_token(user.id, article.id, rating=1)
+        response = client.post("/api/feedback/confirm", json={"token": token})
+        assert response.status_code == 403
+
+    def test_confirm_nonexistent_content_returns_404(self, client, test_db):
+        """Token pointing to nonexistent content should return 404."""
+        from app.security import generate_feedback_token
+
+        user = User(email="noart@test.com", preferences=[], is_active=True)
+        test_db.add(user)
+        test_db.commit()
+
+        token = generate_feedback_token(user.id, content_id=99999, rating=1)
+        response = client.post("/api/feedback/confirm", json={"token": token})
+        assert response.status_code == 404
+
+    def test_confirm_tampered_token_returns_400(self, client, test_db):
+        """Tampered tokens should return 400."""
+        response = client.post("/api/feedback/confirm", json={"token": "TAMPERED_GARBAGE"})
+        assert response.status_code == 400

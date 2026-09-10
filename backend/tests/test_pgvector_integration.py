@@ -18,7 +18,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import Content, ContentSourceType, ContentStatus, PipelineRun, Source, User
+from app.models import Content, ContentSourceType, ContentStatus, Feedback, PipelineRun, Source, User
 
 # Resolve test PostgreSQL URL from environment
 PG_TEST_URL = os.getenv("TEST_DATABASE_URL") or os.getenv("POSTGRES_TEST_URL")
@@ -180,3 +180,89 @@ def test_content_persistence_and_pipeline_run_table(pg_session):
     assert saved_run.status == "success"
     assert saved_run.articles_scraped == 25
     assert saved_run.error_count == 0
+
+
+def test_feedback_table_creation_and_insert(pg_session):
+    """Verifies that the Feedback table exists and accepts valid ratings."""
+    user = pg_session.query(User).first()
+    if not user:
+        user = User(email="feedback_pg@example.com", preferences=["LLMs"], is_active=True)
+        pg_session.add(user)
+        pg_session.flush()
+
+    source = pg_session.query(Source).first()
+    article = Content(
+        source_id=source.id,
+        guid="feedback-pg-001",
+        title="Feedback Test Article",
+        url="https://example.com/feedback-test",
+        status=ContentStatus.PROCESSED,
+    )
+    pg_session.add(article)
+    pg_session.flush()
+
+    fb = Feedback(user_id=user.id, content_id=article.id, rating=1)
+    pg_session.add(fb)
+    pg_session.commit()
+
+    saved = pg_session.query(Feedback).filter(Feedback.user_id == user.id).first()
+    assert saved is not None
+    assert saved.rating == 1
+
+
+def test_feedback_check_constraint_rejects_invalid_rating(pg_session):
+    """Verifies PostgreSQL enforces CHECK (rating IN (-1, 1)) at the DB level."""
+    user = pg_session.query(User).first()
+    if not user:
+        user = User(email="check_pg@example.com", preferences=[], is_active=True)
+        pg_session.add(user)
+        pg_session.flush()
+
+    source = pg_session.query(Source).first()
+    article = Content(
+        source_id=source.id,
+        guid="check-constraint-001",
+        title="Check Constraint Test",
+        url="https://example.com/check-test",
+        status=ContentStatus.PROCESSED,
+    )
+    pg_session.add(article)
+    pg_session.flush()
+
+    # Try inserting invalid rating (0) — should be rejected by CHECK constraint
+    fb = Feedback(user_id=user.id, content_id=article.id, rating=0)
+    pg_session.add(fb)
+    with pytest.raises(Exception):
+        pg_session.commit()
+    pg_session.rollback()
+
+
+def test_feedback_cascade_delete_on_user(pg_session):
+    """Verifies that deleting a user cascades to delete their feedback."""
+
+    user = User(email="cascade_test@example.com", preferences=[], is_active=True)
+    pg_session.add(user)
+    pg_session.flush()
+
+    source = pg_session.query(Source).first()
+    article = Content(
+        source_id=source.id,
+        guid="cascade-001",
+        title="Cascade Test Article",
+        url="https://example.com/cascade",
+        status=ContentStatus.PROCESSED,
+    )
+    pg_session.add(article)
+    pg_session.flush()
+
+    fb = Feedback(user_id=user.id, content_id=article.id, rating=-1)
+    pg_session.add(fb)
+    pg_session.commit()
+
+    # Delete user
+    pg_session.delete(user)
+    pg_session.commit()
+
+    # Feedback should be gone
+    remaining = pg_session.query(Feedback).filter(Feedback.user_id == user.id).all()
+    assert len(remaining) == 0

@@ -5,9 +5,37 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models import Content, ContentStatus, User
+from app.models import Content, ContentStatus, Feedback, User
 
 logger = logging.getLogger(__name__)
+
+# ── Conservative Tag Canonicalization ──
+# Normalizes obvious linguistic and formatting variants while preserving distinct technical domains.
+TAG_CANONICAL_MAP = {
+    "llm": "llms",
+    "large language model": "llms",
+    "large language models": "llms",
+    "genai": "generative-ai",
+    "generative ai": "generative-ai",
+    "rag": "rag",
+    "retrieval augmented generation": "rag",
+    "agent": "agents",
+    "ai agent": "agents",
+    "ai agents": "agents",
+}
+
+
+def normalize_tag(tag: str) -> str:
+    """Normalize a tag to its canonical form using conservative alias mapping.
+
+    Returns empty string for non-string or empty input.
+    Unknown tags are lowercased and stripped but otherwise preserved.
+    """
+    if not isinstance(tag, str):
+        return ""
+    cleaned = tag.strip().lower()
+    return TAG_CANONICAL_MAP.get(cleaned, cleaned)
+
 
 class ContentCurator:
     def __init__(self, time_window_hours: int = 24):
@@ -21,40 +49,144 @@ class ContentCurator:
             Content.processed_at >= cutoff_time
         ).all()
 
-    def score_content_for_user(self, article: Content, user: User) -> int:
+    def _get_learned_tag_affinities(self, db: Session, user_id: int) -> dict[str, int]:
+        """Aggregate 60-day historical feedback into per-tag affinity scores.
+
+        Returns a dict mapping normalized tag → net affinity score
+        (positive means liked, negative means disliked).
         """
-        Calculates a relevance score for an article based on the user's preferences.
-        A very simple keyword matching approach for now.
-        Can be upgraded to LLM Embeddings or LLM Agent scoring later.
+        cutoff = datetime.now(UTC) - timedelta(days=60)
+        feedbacks = (
+            db.query(Feedback.content_id, Feedback.rating)
+            .filter(
+                Feedback.user_id == user_id,
+                Feedback.created_at >= cutoff,
+            )
+            .all()
+        )
+
+        if not feedbacks:
+            return {}
+
+        # Batch-fetch all content IDs from the feedback
+        content_ids = [f.content_id for f in feedbacks]
+        articles = (
+            db.query(Content.id, Content.summary)
+            .filter(Content.id.in_(content_ids))
+            .all()
+        )
+        summary_map = {a.id: a.summary for a in articles}
+
+        # Aggregate tag affinities
+        tag_affinities: dict[str, int] = {}
+        for feedback in feedbacks:
+            summary_json = summary_map.get(feedback.content_id)
+            if not summary_json:
+                continue
+            try:
+                summary_data = json.loads(summary_json)
+                tags = summary_data.get("tags", [])
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+            for tag in tags:
+                norm = normalize_tag(tag)
+                if norm:
+                    # +1 rating → count as liked, -1 → count as disliked
+                    tag_affinities[norm] = tag_affinities.get(norm, 0) + feedback.rating
+
+        return tag_affinities
+
+    def score_content_for_user(
+        self,
+        article: Content,
+        user: User,
+        db: Session | None = None,
+    ) -> int | dict:
         """
-        score = 0
-        if not user.preferences:
-            return 1 # Default base score if user has no preferences
-            
-        # Extract text to search inside (title, tags from summary, key takeaway)
+        Calculates a relevance score for an article based on explicit preferences
+        and learned tag affinities from historical feedback.
+
+        When db is provided, returns a score_breakdown dict with full explainability.
+        When db is None (backward-compatible), returns the integer score.
+
+        Score formula:
+            Score = max(0, 1 + explicit_pref_score + clamp(learned_affinity, -4, 4))
+        """
+        base_score = 1
+
+        # Extract article text and tags
         search_text = article.title.lower()
-        
+        article_tags_raw: list[str] = []
+
         try:
             summary_data = json.loads(article.summary) if article.summary else {}
-            
+
             # If the LLM flagged this article as spam, vulgar, or completely irrelevant, drop it immediately
             if not summary_data.get("is_appropriate_ai_news", True):
+                if db is not None:
+                    return {
+                        "base": 0,
+                        "explicit_preferences": 0,
+                        "learned_affinity": 0,
+                        "total": 0,
+                        "matched_topics": [],
+                        "matched_affinity_tags": [],
+                    }
                 return 0
-                
+
             search_text += " " + summary_data.get("key_takeaway", "").lower()
-            tags = [t.lower() for t in summary_data.get("tags", [])]
-            search_text += " " + " ".join(tags)
+            article_tags_raw = summary_data.get("tags", [])
+            tags_lower = [t.lower() for t in article_tags_raw]
+            search_text += " " + " ".join(tags_lower)
         except json.JSONDecodeError:
             pass
 
-        # Score based on keyword hits
-        for pref in user.preferences:
-            keyword = pref.lower()
-            if keyword in search_text:
-                score += 5 # High weight for explicit topic match
-                
-        # Base score of 1 just for being new AI news
-        return score + 1
+        # ── Explicit Preference Score (+5 per match) ──
+        explicit_score = 0
+        matched_topics = []
+        if user.preferences:
+            for pref in user.preferences:
+                keyword = pref.lower()
+                if keyword in search_text:
+                    explicit_score += 5
+                    matched_topics.append(pref)
+
+        # ── Learned Tag Affinity (±2 per matching tag, clamped [-4, +4]) ──
+        learned_affinity = 0
+        matched_affinity_tags = []
+
+        if db is not None:
+            tag_affinities = self._get_learned_tag_affinities(db, user.id)
+
+            if tag_affinities:
+                article_tags_normalized = [normalize_tag(t) for t in article_tags_raw]
+                for norm_tag in article_tags_normalized:
+                    if norm_tag and norm_tag in tag_affinities:
+                        affinity = tag_affinities[norm_tag]
+                        if affinity > 0:
+                            learned_affinity += 2
+                        elif affinity < 0:
+                            learned_affinity -= 2
+                        matched_affinity_tags.append(norm_tag)
+
+            # Clamp learned affinity to [-4, +4]
+            learned_affinity = max(-4, min(4, learned_affinity))
+
+        total = max(0, base_score + explicit_score + learned_affinity)
+
+        if db is not None:
+            return {
+                "base": base_score,
+                "explicit_preferences": explicit_score,
+                "learned_affinity": learned_affinity,
+                "total": total,
+                "matched_topics": matched_topics,
+                "matched_affinity_tags": matched_affinity_tags,
+            }
+
+        # Backward-compatible: return just the score when no db session provided
+        return total
 
     def curate_for_all_users(self, max_articles_per_user: int = 5):
         """
@@ -87,7 +219,13 @@ class ContentCurator:
                     if article.id in sent_ids:
                         continue # Skip if already sent to this user!
                         
-                    score = self.score_content_for_user(article, user)
+                    # Use the full adaptive scoring with db session
+                    breakdown = self.score_content_for_user(article, user, db=db)
+                    if isinstance(breakdown, dict):
+                        score = breakdown["total"]
+                    else:
+                        score = breakdown
+
                     if score > 0:
                         scored_articles.append((score, article))
                 

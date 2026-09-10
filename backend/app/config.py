@@ -13,6 +13,18 @@ ALERT_EMAIL = os.getenv("ALERT_EMAIL", FROM_EMAIL)
 CRON_SECRET = os.getenv("CRON_SECRET", "")
 RENDER = os.getenv("RENDER", "false").lower() in ("true", "1", "yes")
 
+# ── Feedback Token Secret ──
+# Separate from LLM_API_KEY (zero cross-credential fallback).
+# In production, backend fails fast at startup if missing or empty.
+FEEDBACK_TOKEN_SECRET = os.getenv(
+    "FEEDBACK_TOKEN_SECRET", "briefly-local-dev-feedback-secret-32b"
+)
+if RENDER and not FEEDBACK_TOKEN_SECRET:
+    raise RuntimeError(
+        "FEEDBACK_TOKEN_SECRET must be set in production (RENDER=True). "
+        "Generate a secure random string for this environment variable."
+    )
+
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 
