@@ -25,7 +25,7 @@
 
 ## Overview
 
-Briefly.ai is a production-oriented full-stack Generative AI application that automatically ingests news from 8+ curated AI sources, analyzes and extracts insights using Google Gemini, scores content against individual user preferences, generates 3072-dimensional vector embeddings in PostgreSQL (`pgvector`), and delivers both personalized daily digests and an interactive web exploration platform.
+Briefly.ai is a production-oriented full-stack Generative AI application that automatically ingests news from 6+ curated AI sources, analyzes and extracts insights using Google Gemini, scores content against individual user preferences, generates 3072-dimensional vector embeddings in PostgreSQL (`pgvector`), and delivers both personalized daily digests and an interactive web exploration platform.
 
 ### Core User Capabilities
 1. **Personalized Daily Briefings** - Receive an automated email digest every morning curated specifically to your selected AI domains (LLMs, Robotics, AI Safety, Startups, Hardware, etc.).
@@ -78,7 +78,7 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
 ## Key Features
 
 ### Intelligence & Automated Pipeline
-- **8 Curated RSS Feeds:** Ingests TechCrunch AI, OpenAI Blog, Anthropic News, Google DeepMind, Hugging Face, MIT Tech Review, Reddit r/Artificial, and r/MachineLearning.
+- **6 Curated RSS Feeds:** Ingests TechCrunch AI, OpenAI Blog, Anthropic News, Google DeepMind, Hugging Face, MIT Tech Review.
 - **Pydantic-Enforced Extraction:** Google Gemini 2.5 Flash extracts a single-sentence key takeaway, structured summary points, topic tags, and technical complexity scores (1–5).
 - **Automated Content Moderation:** Rejects spam, off-topic articles, and inappropriate submissions (`is_appropriate_ai_news`).
 - **Adaptive Personalization & Feedback Learning:** Blends explicit user preferences (+5 per keyword match) with learned tag affinities ($\pm 2$ per tag) aggregated over a **60-day historical feedback window**. Applies conservative tag canonicalization (`normalize_tag`) and clamps learned affinity to $[-4, +4]$ to reduce the risk of runaway topic reinforcement and filter bubbles while preserving explainability.
@@ -105,7 +105,7 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
 │   │ (Cron)       │ POST /api/cron/...  │  ┌───────────────────────────┐  │  │
 │   └──────────────┘                     │  │     Pipeline (BG Task)    │  │  │
 │                                        │  │                           │  │  │
-│                                        │  │ 1. Scrape   ─► RSS ×8     │  │  │
+│                                        │  │ 1. Scrape   ─► RSS ×6     │  │  │
 │                                        │  │ 2. Process  ─► Gemini 2.5 │  │  │
 │                                        │  │ 2.5. Embed  ─► pgvector   │  │  │
 │                                        │  │ 3. Curate   ─► Score +    │  │  │
