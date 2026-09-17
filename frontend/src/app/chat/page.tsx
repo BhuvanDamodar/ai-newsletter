@@ -297,6 +297,62 @@ export default function ChatPage() {
                                   return url;
                                 }}
                                 components={{
+                                  p: ({ children }) => (
+                                    <p className="mb-3 last:mb-0 leading-relaxed text-text-dark">
+                                      {children}
+                                    </p>
+                                  ),
+                                  strong: ({ children }) => (
+                                    <strong className="font-bold text-white tracking-wide">
+                                      {children}
+                                    </strong>
+                                  ),
+                                  em: ({ children }) => (
+                                    <em className="italic text-brand-100">
+                                      {children}
+                                    </em>
+                                  ),
+                                  ul: ({ children }) => (
+                                    <ul className="list-disc list-outside pl-5 my-2.5 space-y-1.5 marker:text-brand-400">
+                                      {children}
+                                    </ul>
+                                  ),
+                                  ol: ({ children }) => (
+                                    <ol className="list-decimal list-outside pl-5 my-2.5 space-y-1.5 marker:text-brand-400">
+                                      {children}
+                                    </ol>
+                                  ),
+                                  li: ({ children }) => (
+                                    <li className="leading-relaxed pl-1">
+                                      {children}
+                                    </li>
+                                  ),
+                                  h1: ({ children }) => (
+                                    <h1 className="text-xl font-bold text-white mt-4 mb-2">
+                                      {children}
+                                    </h1>
+                                  ),
+                                  h2: ({ children }) => (
+                                    <h2 className="text-lg font-bold text-white mt-3 mb-1.5">
+                                      {children}
+                                    </h2>
+                                  ),
+                                  h3: ({ children }) => (
+                                    <h3 className="text-base font-semibold text-white mt-2.5 mb-1">
+                                      {children}
+                                    </h3>
+                                  ),
+                                  code: ({ children }) => (
+                                    <code className="bg-white/10 px-1.5 py-0.5 rounded text-xs font-mono text-brand-300">
+                                      {children}
+                                    </code>
+                                  ),
+                                  blockquote: ({ children }) => (
+                                    <blockquote className="border-l-2 border-brand-400 pl-3 my-2 text-text-muted italic">
+                                      {children}
+                                    </blockquote>
+                                  ),
+                                  hr: () => <hr className="border-white/10 my-4" />,
                                   // Custom link renderer: resolves citation:// links to source URLs
                                   a: ({ href, children, ...props }) => {
                                     if (href && href.startsWith("citation://")) {
