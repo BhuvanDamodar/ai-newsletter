@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12" />
   <img src="https://img.shields.io/badge/Next.js-16-000000?logo=next.js&logoColor=white" alt="Next.js 16" />
   <img src="https://img.shields.io/badge/PostgreSQL-17_%2B_pgvector-336791?logo=postgresql&logoColor=white" alt="PostgreSQL 17 + pgvector" />
-  <img src="https://img.shields.io/badge/Google_Gemini-2.5_Flash_%2B_Embedding-4285F4?logo=google&logoColor=white" alt="Gemini" />
+  <img src="https://img.shields.io/badge/Google_Gemini-3.5_Flash--Lite_%2B_Embedding-4285F4?logo=google&logoColor=white" alt="Gemini" />
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
 ### Core User Capabilities
 1. **Personalized Daily Briefings** - Receive an automated email digest every morning curated specifically to your selected AI domains (LLMs, Robotics, AI Safety, Startups, Hardware, etc.).
 2. **Interactive News Dashboard** (`/dashboard`) - Filter, search, and browse the curated news archive by source, topic tags, publication date, and technical complexity (Beginner to Expert).
-3. **Conversational RAG Chat** (`/chat`) - Query the embedded AI news archive with natural language. Google Gemini answers using retrieved news articles as context, with source citations.
+3. **Conversational RAG Chat** (`/chat`) - Query the embedded AI news archive with natural language. Google Gemini answers using retrieved news articles as context, with formatted Markdown responses and clickable `[Article N]` citations that open the original retrieved source article.
 4. **Adaptive Personalization & Feedback Learning** (`/feedback`) - Rate articles directly from your morning email digest (👍 Relevant / 👎 Not for me). Briefly.ai uses cryptographically signed tokens, a scanner-safe two-step confirmation screen, and a 60-day adaptive tag-affinity model based on explicit subscriber feedback to continuously refine your future briefings.
 
 > **Live Deployments:**
@@ -79,7 +79,7 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
 
 ### Intelligence & Automated Pipeline
 - **6 Curated RSS Feeds:** Ingests TechCrunch AI, OpenAI Blog, Anthropic News, Google DeepMind, Hugging Face, MIT Tech Review.
-- **Pydantic-Enforced Extraction:** Google Gemini 2.5 Flash extracts a single-sentence key takeaway, structured summary points, topic tags, and technical complexity scores (1–5).
+- **Pydantic-Enforced Extraction:** Google Gemini (primary: `gemini-3.5-flash-lite`) extracts a single-sentence key takeaway, structured summary points, topic tags, and technical complexity scores (1–5).
 - **Automated Content Moderation:** Rejects spam, off-topic articles, and inappropriate submissions (`is_appropriate_ai_news`).
 - **Adaptive Personalization & Feedback Learning:** Blends explicit user preferences (+5 per keyword match) with learned tag affinities ($\pm 2$ per tag) aggregated over a **60-day historical feedback window**. Applies conservative tag canonicalization (`normalize_tag`) and clamps learned affinity to $[-4, +4]$ to reduce the risk of runaway topic reinforcement and filter bubbles while preserving explainability.
 - **Cross-Day Deduplication:** Cross-references `DigestLog` to ensure active subscribers never receive duplicate articles across consecutive daily briefings.
@@ -87,7 +87,7 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
 
 ### Interactive Web Platform
 - **News Dashboard (`/dashboard`):** Real-time search across titles, multi-filter drawer (Source, Tag frequency counts, Date ranges), and pagination.
-- **Conversational RAG Engine (`/chat`):** Vector search over 3072-dimensional embeddings with cosine similarity (`<=>`), prompt grounding, and interactive citation badges `[Article N]`.
+- **Conversational RAG Engine (`/chat`):** Vector search over 3072-dimensional embeddings with cosine similarity (`<=>`), prompt grounding, formatted Markdown responses, and clickable `[Article N]` citations that open the original retrieved source article.
 - **Scanner-Resistant Feedback Confirmation (`/feedback`):** Two-step ingestion architecture separating read-only token verification (`GET /api/feedback/verify`) from state mutation (`POST /api/feedback/confirm`), which reduces the risk of unintended feedback from automated email link scanners.
 - **Graceful Performance Handling:** Speculative pre-warming on initial load, client session caching for instant page transitions, and progressive status indicators during cold boots.
 
@@ -106,7 +106,7 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
 │   └──────────────┘                     │  │     Pipeline (BG Task)    │  │  │
 │                                        │  │                           │  │  │
 │                                        │  │ 1. Scrape   ─► RSS ×6     │  │  │
-│                                        │  │ 2. Process  ─► Gemini 2.5 │  │  │
+│                                        │  │ 2. Process  ─► Gemini     │  │  │
 │                                        │  │ 2.5. Embed  ─► pgvector   │  │  │
 │                                        │  │ 3. Curate   ─► Score +    │  │  │
 │                                        │  │                Tag Learn  │  │  │
@@ -137,7 +137,7 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
 |---|---|---|
 | **1. Ingest** | `backend/app/scraper/orchestrator.py` | Seeds default sources and dispatches RSS scraper. |
 | **2. Parse** | `backend/app/scraper/rss_scraper.py` | Fetches RSS feeds, deduplicates by GUID, and writes `PENDING_PROCESSING` records. |
-| **3. Summarize** | `backend/app/processor.py` | Prompts **Gemini 2.5 Flash** with Pydantic schema validation (`ArticleSummary`), generating takeaways, points, tags, and spam flags with exponential backoff. |
+| **3. Summarize** | `backend/app/processor.py` | Prompts **Google Gemini** with Pydantic schema validation (`ArticleSummary`), generating takeaways, points, tags, and spam flags with exponential backoff. |
 | **3.5. Embed** | `backend/app/embedder.py` | Combines `title \| takeaway \| points \| tags` into semantic text, generates **3072-dimensional dense vectors** via `gemini-embedding-001`, and persists them to PostgreSQL via `pgvector`. |
 | **4. Curate** | `backend/app/curator.py` | Scores candidate articles using explicit keyword preferences (+5 per match, +1 base) and **60-day historical feedback tag affinities ($\pm 2$ per tag, clamped $[-4, +4]$)** with conservative canonicalization (`normalize_tag`), cross-referencing `DigestLog` for deduplication. |
 | **5. Deliver** | `backend/app/email_service.py` & `security.py` | Signs 30-day feedback tokens with `itsdangerous`, renders responsive HTML digests with email-safe pill buttons (`digest.html`), and delivers via authenticated **Gmail REST API**. |
@@ -154,8 +154,8 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
 | **RAG Pipeline Architecture** | **Direct Custom Pipeline (`rag.py`)** | LangChain, LlamaIndex | Built a transparent, lightweight RAG chain directly using Google GenAI SDK and SQLAlchemy. Retains complete control over prompt construction, latency measurement, and citation grounding. |
 | **Feedback Ingestion & Scanner Defense** | **Two-Step Confirmation (`GET /verify` $\to$ `POST /confirm`)** | Single-click mutating GET endpoint | Enterprise anti-spam scanners (Microsoft Defender SafeLinks, Mimecast, Gmail pre-fetchers) automatically fetch every link in incoming emails. A direct mutating `GET` endpoint causes bots to vote on every article, wrecking user personalization. The read-only verification request uses GET, while explicit user confirmation uses POST for the state-changing operation, preventing automated link scanners from recording feedback. |
 | **Bounded Feedback Personalization** | **$[-4, +4]$ Clamp on Learned Tag Affinity** | Unbounded linear weights, collaborative filtering | Unbounded tag accumulation creates runaway filter bubbles where a single topic dominates recommendations forever. Bounding learned affinity to $[-4, +4]$ ensures implicit feedback strongly shapes ranking ($\pm 2$ per tag) without overriding explicit user topic choices ($+5$) or extinguishing serendipitous news discovery. |
-| **Two-Tier Testing Strategy** | **In-memory SQLite + PostgreSQL CI container (90 tests)** | Pure SQLite or Pure Postgres | Custom `@compiles(Vector, "sqlite")` handler enables 82 SQLite-based unit/integration tests to run locally and offline in ~2 seconds, while GitHub Actions CI validates pgvector operators (`<=>`) and relational constraints (`CHECK`, `CASCADE`) against a live `pgvector/pgvector:pg17` container (8 PostgreSQL integration tests). |
-| **Free-Tier Cold-Start Handling** | **Speculative Pre-Warming & Client Session Caching** | Paid warm instances, fake optimistic UI | Accepts serverless/free-tier cold boots as an infrastructure constraint and mitigates user impact through background health pings (`Navbar.tsx`), session storage caching, and multi-stage loading feedback. |
+| **Two-Tier Testing Strategy** | **In-memory SQLite + PostgreSQL CI container (92 tests)** | Pure SQLite or Pure Postgres | Custom `@compiles(Vector, "sqlite")` handler enables 84 SQLite-based unit/integration tests to run locally and offline in ~2 seconds, while GitHub Actions CI validates pgvector operators (`<=>`) and relational constraints (`CHECK`, `CASCADE`) against a live `pgvector/pgvector:pg17` container (8 PostgreSQL integration tests). |
+| **Free-Tier Cold-Start Handling** | **Speculative Pre-Warming & Client Session Caching** | Paid warm instances, fake optimistic UI | Accepts serverless/free-tier cold boots as an infrastructure constraint and mitigates user impact through background health pings (`Navbar.tsx`), session storage caching, progressive loading feedback, and an elapsed wait indicator. |
 | **Stateful Telemetry** | **`PipelineRun` Database Table** | In-memory globals | Persists daily pipeline execution metrics, duration, and error counts directly into PostgreSQL so that telemetry survives server sleep and restarts. |
 
 ---
@@ -166,10 +166,10 @@ Briefly.ai is a production-oriented full-stack Generative AI application that au
 |---|---|
 | **Frontend** | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, Framer Motion, Lucide Icons |
 | **Backend API** | Python 3.12, FastAPI, Uvicorn, SQLAlchemy ORM, Pydantic v2, itsdangerous, Tenacity, Ruff |
-| **AI / LLM** | Google Gemini 2.5 Flash (`gemini-2.5-flash`), Gemini Embedding (`gemini-embedding-001`, 3072 dims) |
+| **AI / LLM** | Google Gemini with automatic model failover (primary: `gemini-3.5-flash-lite`, fallbacks: `gemini-flash-latest`, `gemini-3.1-flash-lite`, `gemini-2.5-flash`), Gemini Embedding (`gemini-embedding-001`, 3072 dims) |
 | **Vector Database** | PostgreSQL 17 + `pgvector` extension (Docker `pgvector/pgvector:pg17` local / Neon serverless) |
 | **Email Delivery** | Gmail REST API (`google-api-python-client`), Jinja2 HTML templates |
-| **Testing & CI** | Pytest (90 tests: 82 SQLite-based unit/integration tests + 8 PostgreSQL integration tests), HTTPX, GitHub Actions (CI & daily cron) |
+| **Testing & CI** | Pytest (92 tests: 84 SQLite-based unit/integration tests + 8 PostgreSQL integration tests), HTTPX, GitHub Actions (CI & daily cron) |
 | **Deployment** | Render (Web Service), Vercel (Frontend), Neon (Database), Docker |
 
 ---
@@ -199,7 +199,7 @@ uv run python -m tests.rag_eval.evaluate_rag
 
 ## Testing & Quality Assurance
 
-The test suite combines fast local SQLite emulation with live PostgreSQL + pgvector integration testing (90 tests total):
+The test suite combines fast local SQLite emulation with live PostgreSQL + pgvector integration testing (92 tests total):
 
 ```bash
 cd backend
@@ -232,7 +232,7 @@ Push / Pull Request
         │
         ├──► 1. backend-test (Ubuntu + Python 3.12 via uv + pgvector:pg17 container)
         │       • Ruff linter (checks code style & syntax)
-        │       • Pytest suite (82 SQLite-based unit/integration tests + 8 live PostgreSQL tests = 90 total)
+        │       • Pytest suite (84 SQLite-based unit/integration tests + 8 live PostgreSQL tests = 92 total)
         │       • Production Docker build verification (docker build backend)
         │
         └──► 2. frontend-build (Ubuntu + Node.js 20)
@@ -249,11 +249,13 @@ Deployment to production environments (Render for FastAPI, Vercel for Next.js) p
 - **Structured JSON Logging:** Enabled in production (`RENDER=true`). Outputs single-line JSON logs formatted for cloud log aggregators.
 - **Pipeline Health & Telemetry (`/api/status`):** Queries persisted `PipelineRun` records from PostgreSQL to survive server restarts, tracking execution status, article counts, duration, and error counts without exposing internal stack traces.
 - **Automated Failure Alerts:** If an unhandled exception occurs during the daily pipeline run, an operational failure report with stack traces and timestamps is automatically dispatched to `ALERT_EMAIL` via the authenticated Gmail API.
+- **LLM Failover & Bounded Retries:** To mitigate transient free-tier quota limits or upstream API service disruptions, RAG response generation uses automatic model failover (falling back from `gemini-3.5-flash-lite` to secondary Gemini models) with bounded retries.
 - **Tamper-Resistant Feedback Cryptography:** Feedback tokens use `itsdangerous.URLSafeTimedSerializer` with a 30-day expiration, signing `user_id`, `content_id`, and `rating` to detect and reject modified or forged feedback tokens.
 - **Cross-Client Email Styling:** Digest templates use inline CSS and structured containers so pill-shaped feedback buttons render consistently across Outlook, Gmail, and mobile email clients without layout collapse.
 - **Cold-Start Resilience:**
   - *Speculative Pre-Warming:* `Navbar.tsx` fires a non-blocking `GET /api/health` ping once per session on initial interaction.
   - *Client Session Cache:* Returning navigation within the same browser session renders cached dashboard data immediately while the application refreshes it in the background.
+  - *Progressive Loading Feedback:* Multi-stage loading feedback and an elapsed wait indicator keep users informed during initial cold boots and chat generation requests.
   - *Confirmed Persistence:* Subscription and unsubscription flows use confirmed database persistence and bounded retries to handle transient failures.
 
 ---
@@ -351,7 +353,7 @@ DATABASE_URL=postgresql://ainews_user:ainews_password@db:5432/ainews
 
 # ── Gemini LLM & Embeddings ──
 LLM_API_KEY=your_gemini_api_key
-LLM_MODEL=gemini-2.5-flash
+LLM_MODEL=gemini-3.5-flash-lite
 
 # ── Email Delivery & Security ──
 FROM_EMAIL=your_email@gmail.com
@@ -429,7 +431,7 @@ Briefly.ai is designed to operate within available free tiers for portfolio-scal
 | **Vector Database** | [Neon](https://neon.tech) | Serverless PostgreSQL with native `pgvector` |
 | **Frontend** | [Vercel](https://vercel.com) | Next.js deployment on Hobby tier |
 | **Scheduler** | [GitHub Actions](https://github.com/features/actions) | Daily cron wakes Render and triggers pipeline |
-| **LLM & Vectors** | [Google Gemini](https://ai.google.dev) | Gemini 2.5 Flash + Embedding 001 free tier |
+| **LLM & Vectors** | [Google Gemini](https://ai.google.dev) | Google Gemini with automatic model failover (`gemini-3.5-flash-lite`) + Embedding 001 free tier |
 | **Email** | Gmail REST API | Authenticated digest and alert delivery |
 
 > **Neon PostgreSQL Initialization**:
