@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Sequence
 
 from google import genai
 from sqlalchemy.orm import Session
@@ -7,7 +8,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.config import LLM_API_KEY, LLM_MODEL
 from app.database import SessionLocal
-from app.models import Content, ContentStatus
+from app.models import Content, ContentStatus, Source
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +27,15 @@ def embed_query(text: str) -> list[float]:
     return result.embeddings[0].values
 
 
-def retrieve_relevant_articles(db: Session, query_embedding: list[float], limit: int = 5) -> list[Content]:
+def retrieve_relevant_articles(db: Session, query_embedding: list[float], limit: int = 5) -> Sequence[tuple[Content, str | None]]:
     """
     Finds the most semantically similar articles using pgvector cosine distance.
     Only searches articles that have been processed and embedded.
+    Returns a list of (Content, source_name) tuples via a single joined query.
     """
-    articles = (
-        db.query(Content)
+    rows = (
+        db.query(Content, Source.name)
+        .outerjoin(Source, Content.source_id == Source.id)
         .filter(
             Content.status == ContentStatus.PROCESSED,
             Content.embedding.isnot(None),
@@ -41,14 +44,14 @@ def retrieve_relevant_articles(db: Session, query_embedding: list[float], limit:
         .limit(limit)
         .all()
     )
-    return articles
+    return rows
 
 
-def build_rag_context(articles: list[Content]) -> str:
+def build_rag_context(article_rows: Sequence[tuple[Content, str | None]]) -> str:
     """Formats retrieved articles into a context string for the LLM."""
     context_parts = []
     
-    for i, article in enumerate(articles, 1):
+    for i, (article, _source_name) in enumerate(article_rows, 1):
         summary_text = ""
         if article.summary:
             try:
@@ -71,18 +74,18 @@ def build_rag_context(articles: list[Content]) -> str:
 
 
 @retry(wait=wait_exponential(multiplier=1, min=10, max=60), stop=stop_after_attempt(3), reraise=True)
-def generate_rag_response(query: str, articles: list[Content]) -> dict:
+def generate_rag_response(query: str, article_rows: Sequence[tuple[Content, str | None]]) -> dict:
     """
     Generates a grounded answer to the user's query using retrieved article context.
     Returns { "answer": str, "sources": list[dict] }.
     """
-    if not articles:
+    if not article_rows:
         return {
             "answer": "I couldn't find any relevant articles in the database to answer your question. Try asking about a specific AI topic that's been in the news recently.",
             "sources": []
         }
     
-    context = build_rag_context(articles)
+    context = build_rag_context(article_rows)
     
     prompt = f"""You are an expert AI news analyst for Briefly.ai. A user is asking a question about recent AI news.
 
@@ -109,7 +112,7 @@ Answer:"""
     
     # Build source references
     sources = []
-    for article in articles:
+    for article, source_name in article_rows:
         summary_data = {}
         if article.summary:
             try:
@@ -124,6 +127,7 @@ Answer:"""
             "published_at": article.published_at.isoformat() if article.published_at else None,
             "key_takeaway": summary_data.get("key_takeaway", ""),
             "tags": summary_data.get("tags", []),
+            "source_name": source_name,
         })
     
     return {
@@ -144,12 +148,12 @@ def chat(query: str) -> dict:
         # 1. Embed the user's query
         query_embedding = embed_query(query)
         
-        # 2. Retrieve relevant articles
-        articles = retrieve_relevant_articles(db, query_embedding, limit=5)
-        logger.info(f"Retrieved {len(articles)} relevant articles")
+        # 2. Retrieve relevant articles (joined with Source for source_name)
+        article_rows = retrieve_relevant_articles(db, query_embedding, limit=5)
+        logger.info(f"Retrieved {len(article_rows)} relevant articles")
         
         # 3. Generate grounded response
-        result = generate_rag_response(query, articles)
+        result = generate_rag_response(query, article_rows)
         
         return result
         
