@@ -290,6 +290,12 @@ export default function ChatPage() {
                             <div className="text-sm sm:text-base leading-relaxed prose-chat">
                               <ReactMarkdown
                                 remarkPlugins={[remarkGfm]}
+                                urlTransform={(url) => {
+                                  // Allow citation:// scheme through without sanitization
+                                  if (url.startsWith("citation://")) return url;
+                                  // Use default sanitization for all other URLs
+                                  return url;
+                                }}
                                 components={{
                                   // Custom link renderer: resolves citation:// links to source URLs
                                   a: ({ href, children, ...props }) => {
