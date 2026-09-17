@@ -115,3 +115,19 @@ class TestGenerateRagResponse:
 
         result = generate_rag_response("Query", [(processed_article, None)])
         assert result["sources"][0]["source_name"] is None
+
+    @patch("app.rag.client")
+    def test_fallback_to_secondary_model_on_error(self, mock_client, processed_article):
+        """When primary model fails, generate_rag_response should seamlessly try the next model."""
+        mock_success = MagicMock()
+        mock_success.text = "Fallback answer text"
+
+        # First call fails (e.g. 429 quota exhaustion), second call succeeds
+        mock_client.models.generate_content.side_effect = [
+            Exception("429 RESOURCE_EXHAUSTED"),
+            mock_success,
+        ]
+
+        result = generate_rag_response("Query", [(processed_article, "TechCrunch AI")])
+        assert result["answer"] == "Fallback answer text"
+        assert mock_client.models.generate_content.call_count == 2
