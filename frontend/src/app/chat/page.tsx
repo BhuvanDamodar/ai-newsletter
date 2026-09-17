@@ -12,6 +12,8 @@ import {
   User,
   Tag,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import Navbar from "../components/Navbar";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -23,6 +25,7 @@ interface ChatSource {
   published_at: string | null;
   key_takeaway: string | null;
   tags: string[] | null;
+  source_name: string | null;
 }
 
 interface ChatMessage {
@@ -42,13 +45,34 @@ const suggestedQuestions = [
   "Tell me about recent AI startup news",
 ];
 
+/**
+ * Pre-processes assistant message text to convert [Article N] citation markers
+ * into Markdown links with a custom `citation://` scheme.
+ * react-markdown will then render these as <a> tags, which our custom link
+ * renderer resolves to the actual source URL.
+ */
+function injectCitationLinks(text: string, sources?: ChatSource[]): string {
+  if (!sources || sources.length === 0) return text;
+
+  return text.replace(/\[Article\s+(\d+)\]/gi, (match, numStr) => {
+    const idx = parseInt(numStr, 10);
+    // Only convert if the index maps to an actual source
+    if (idx >= 1 && idx <= sources.length) {
+      return `[Article ${idx}](citation://${idx})`;
+    }
+    return match; // leave unknown references as-is
+  });
+}
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [chatProgress, setChatProgress] = useState("Preparing your answer...");
+  const [chatProgress, setChatProgress] = useState("Connecting to Briefly.ai\u2026");
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -57,6 +81,13 @@ export default function ChatPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Clean up elapsed timer on unmount
+  useEffect(() => {
+    return () => {
+      if (elapsedRef.current) clearInterval(elapsedRef.current);
+    };
+  }, []);
 
   const sendMessage = async (query: string) => {
     if (!query.trim() || isLoading) return;
@@ -77,20 +108,27 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, userMessage, loadingMessage]);
     setInput("");
     setIsLoading(true);
-    setChatProgress("Preparing your answer...");
+    setChatProgress("Connecting to Briefly.ai\u2026");
+    setElapsedSeconds(0);
+
+    // Start elapsed counter
+    const startTime = Date.now();
+    elapsedRef.current = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
 
     // Progressive loading status timers
     const timer1 = setTimeout(() => {
-      setChatProgress("Starting AI service — the first request may take a little longer...");
-    }, 3500);
+      setChatProgress("The first request after inactivity can take around 30\u201345 seconds while the service starts.");
+    }, 5000);
 
     const timer2 = setTimeout(() => {
-      setChatProgress("Searching relevant news articles in vector archive...");
-    }, 12000);
+      setChatProgress("Searching relevant news articles\u2026");
+    }, 15000);
 
     const timer3 = setTimeout(() => {
-      setChatProgress("Generating grounded response with source citations...");
-    }, 25000);
+      setChatProgress("Generating a grounded answer with source citations\u2026");
+    }, 28000);
 
     try {
       const res = await fetch(`${API_URL}/api/chat`, {
@@ -123,7 +161,7 @@ export default function ChatPage() {
             ? {
                 ...msg,
                 content:
-                  "Sorry, I encountered an error while connecting. The backend may be finishing its initial boot — please retry in a few seconds.",
+                  "Sorry, I encountered an error while connecting. The backend may be finishing its initial boot \u2014 please retry in a few seconds.",
                 loading: false,
               }
             : msg
@@ -133,6 +171,10 @@ export default function ChatPage() {
       clearTimeout(timer1);
       clearTimeout(timer2);
       clearTimeout(timer3);
+      if (elapsedRef.current) {
+        clearInterval(elapsedRef.current);
+        elapsedRef.current = null;
+      }
       setIsLoading(false);
     }
   };
@@ -228,18 +270,72 @@ export default function ChatPage() {
                       } border rounded-2xl px-5 py-4`}
                     >
                       {msg.loading ? (
-                        <div className="flex items-center gap-2.5 text-text-muted py-1">
-                          <Loader2 className="w-4 h-4 animate-spin text-brand-400 shrink-0" />
-                          <span className="text-sm font-medium animate-pulse text-brand-100">
-                            {chatProgress}
-                          </span>
+                        <div className="flex flex-col gap-2 py-1">
+                          <div className="flex items-center gap-2.5 text-text-muted">
+                            <Loader2 className="w-4 h-4 animate-spin text-brand-400 shrink-0" />
+                            <span className="text-sm font-medium animate-pulse text-brand-100">
+                              {chatProgress}
+                            </span>
+                          </div>
+                          {elapsedSeconds >= 5 && (
+                            <span className="text-xs text-text-muted/60 ml-6.5">
+                              Waiting: {elapsedSeconds}s
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <>
                           {/* Message Content */}
-                          <div className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap">
-                            {msg.content}
-                          </div>
+                          {msg.role === "assistant" ? (
+                            <div className="text-sm sm:text-base leading-relaxed prose-chat">
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                  // Custom link renderer: resolves citation:// links to source URLs
+                                  a: ({ href, children, ...props }) => {
+                                    if (href && href.startsWith("citation://")) {
+                                      const idx = parseInt(href.replace("citation://", ""), 10);
+                                      const source = msg.sources?.[idx - 1];
+                                      if (source?.url) {
+                                        return (
+                                          <a
+                                            href={source.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-brand-400 hover:text-brand-100 font-medium transition-colors"
+                                            title={source.title}
+                                            {...props}
+                                          >
+                                            {children}
+                                          </a>
+                                        );
+                                      }
+                                      // No source URL — render as plain text
+                                      return <span className="text-brand-400 font-medium">{children}</span>;
+                                    }
+                                    // Regular link
+                                    return (
+                                      <a
+                                        href={href}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-brand-400 hover:text-brand-100 underline transition-colors"
+                                        {...props}
+                                      >
+                                        {children}
+                                      </a>
+                                    );
+                                  },
+                                }}
+                              >
+                                {injectCitationLinks(msg.content, msg.sources)}
+                              </ReactMarkdown>
+                            </div>
+                          ) : (
+                            <div className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap">
+                              {msg.content}
+                            </div>
+                          )}
 
                           {/* Source Citations */}
                           {msg.sources && msg.sources.length > 0 && (
@@ -269,6 +365,11 @@ export default function ChatPage() {
                                         </p>
                                       )}
                                       <div className="flex items-center gap-2 mt-1.5">
+                                        {source.source_name && (
+                                          <span className="text-xs text-brand-400/70 font-medium">
+                                            {source.source_name}
+                                          </span>
+                                        )}
                                         {source.published_at && (
                                           <span className="text-xs text-text-muted/60">
                                             {formatDate(source.published_at)}

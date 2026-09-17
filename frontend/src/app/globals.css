@@ -20,6 +20,19 @@
     color: var(--color-text-dark);
     font-family: system-ui, -apple-system, sans-serif;
   }
+
+  /* Prevent iOS auto-zoom on form focus (requires >= 16px).
+     Scoped to mobile viewports so desktop typography is unaffected. */
+  @media (max-width: 640px) {
+    input, select, textarea {
+      font-size: 16px !important;
+    }
+  }
+
+  /* Suppress double-tap zoom on interactive controls */
+  button, [role="button"] {
+    touch-action: manipulation;
+  }
 }
 
 @layer utilities {
@@ -41,5 +54,68 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  /* Markdown prose styles for chat assistant messages */
+  .prose-chat p {
+    margin-bottom: 0.75em;
+  }
+  .prose-chat p:last-child {
+    margin-bottom: 0;
+  }
+  .prose-chat strong {
+    font-weight: 700;
+    color: #f1f5f9;
+  }
+  .prose-chat em {
+    font-style: italic;
+  }
+  .prose-chat ul,
+  .prose-chat ol {
+    margin: 0.5em 0;
+    padding-left: 1.5em;
+  }
+  .prose-chat ul {
+    list-style-type: disc;
+  }
+  .prose-chat ol {
+    list-style-type: decimal;
+  }
+  .prose-chat li {
+    margin-bottom: 0.25em;
+  }
+  .prose-chat code {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.15em 0.35em;
+    border-radius: 0.25em;
+    font-size: 0.9em;
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+  }
+  .prose-chat pre {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.75em 1em;
+    border-radius: 0.5em;
+    overflow-x: auto;
+    margin: 0.75em 0;
+  }
+  .prose-chat pre code {
+    background: transparent;
+    padding: 0;
+    font-size: 0.85em;
+  }
+  .prose-chat h1, .prose-chat h2, .prose-chat h3 {
+    font-weight: 700;
+    margin-top: 1em;
+    margin-bottom: 0.5em;
+    color: #f1f5f9;
+  }
+  .prose-chat h1 { font-size: 1.25em; }
+  .prose-chat h2 { font-size: 1.125em; }
+  .prose-chat h3 { font-size: 1em; }
+  .prose-chat blockquote {
+    border-left: 3px solid var(--color-brand-500);
+    padding-left: 0.75em;
+    margin: 0.75em 0;
+    color: var(--color-text-muted);
   }
 }

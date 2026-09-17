@@ -22,7 +22,7 @@ export default function Home() {
     { id: "research", label: "AI Research", icon: BookOpen },
   ];
 
-  const [loadingMessage, setLoadingMessage] = useState("Setting up your personalized briefing...");
+  const [loadingMessage, setLoadingMessage] = useState("Processing your subscription\u2026");
 
   const handleTogglePreference = (topicId: string) => {
     setPreferences(prev => 
@@ -37,13 +37,13 @@ export default function Home() {
     if (!email) return;
 
     setStatus("loading");
-    setLoadingMessage("Setting up your personalized briefing...");
+    setLoadingMessage("Processing your subscription\u2026");
     setErrorMessage("");
 
     // Inform user if server is cold booting
     const timer = setTimeout(() => {
-      setLoadingMessage("Connecting to AI service — initial setup may take a few moments...");
-    }, 3500);
+      setLoadingMessage("Connecting to Briefly.ai \u2014 the first request after inactivity can take around 30\u201345 seconds.");
+    }, 5000);
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";

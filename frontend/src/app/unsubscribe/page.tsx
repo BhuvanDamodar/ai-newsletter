@@ -11,18 +11,18 @@ function UnsubscribeContent() {
   const email = searchParams.get("email");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
-  const [loadingMessage, setLoadingMessage] = useState("Unsubscribing...");
+  const [loadingMessage, setLoadingMessage] = useState("Processing your unsubscribe request\u2026");
 
   const handleUnsubscribe = async () => {
     if (!email) return;
 
     setStatus("loading");
-    setLoadingMessage("Processing your unsubscribe request...");
+    setLoadingMessage("Processing your unsubscribe request\u2026");
     setMessage("");
 
     const timer = setTimeout(() => {
-      setLoadingMessage("Connecting to Briefly.ai — the first request may take a few moments...");
-    }, 3000);
+      setLoadingMessage("Connecting to Briefly.ai \u2014 the first request after inactivity can take around 30\u201345 seconds.");
+    }, 5000);
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";

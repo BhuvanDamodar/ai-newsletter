@@ -62,7 +62,7 @@ export default function DashboardPage() {
   const [sources, setSources] = useState<{ id: number; name: string }[]>([]);
   const [tags, setTags] = useState<{ tag: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMessage, setLoadingMessage] = useState("Loading AI news archive...");
+  const [loadingMessage, setLoadingMessage] = useState("Refreshing latest articles\u2026");
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 12;
@@ -97,12 +97,12 @@ export default function DashboardPage() {
   const fetchArticles = useCallback(async () => {
     if (articles.length === 0) {
       setLoading(true);
-      setLoadingMessage("Loading AI news archive...");
+      setLoadingMessage("Refreshing latest articles\u2026");
     }
 
     const timer = setTimeout(() => {
-      setLoadingMessage("Connecting to AI news service — initial wake-up may take a few moments...");
-    }, 3500);
+      setLoadingMessage("Connecting to Briefly.ai \u2014 the first request after inactivity can take around 30\u201345 seconds.");
+    }, 5000);
 
     try {
       const params = new URLSearchParams({

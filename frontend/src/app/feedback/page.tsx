@@ -30,7 +30,7 @@ function FeedbackContent() {
     "loading" | "verified" | "confirming" | "success" | "error" | "expired"
   >("loading");
   const [message, setMessage] = useState("");
-  const [loadingMessage, setLoadingMessage] = useState("Verifying your feedback link...");
+  const [loadingMessage, setLoadingMessage] = useState("Verifying your feedback link\u2026");
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -45,9 +45,9 @@ function FeedbackContent() {
     const verify = async () => {
       const timer = setTimeout(() => {
         setLoadingMessage(
-          "Connecting to Briefly.ai — the first request may take a few moments..."
+          "Connecting to Briefly.ai \u2014 the first request after inactivity can take around 30\u201345 seconds."
         );
-      }, 3000);
+      }, 5000);
 
       try {
         const res = await fetch(
@@ -90,9 +90,9 @@ function FeedbackContent() {
 
     const timer = setTimeout(() => {
       setLoadingMessage(
-        "Connecting to Briefly.ai — the first request may take a few moments..."
+        "Connecting to Briefly.ai \u2014 the first request after inactivity can take around 30\u201345 seconds."
       );
-    }, 3000);
+    }, 5000);
 
     try {
       const res = await fetch(`${apiUrl}/api/feedback/confirm`, {
