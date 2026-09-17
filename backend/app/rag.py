@@ -17,7 +17,10 @@ client = genai.Client(api_key=LLM_API_KEY)
 clean_model = LLM_MODEL.replace("gemini/", "") if LLM_MODEL and "gemini/" in LLM_MODEL else LLM_MODEL
 
 
-@retry(wait=wait_exponential(multiplier=1, min=10, max=60), stop=stop_after_attempt(3), reraise=True)
+FALLBACK_MODELS = ["gemini-flash-latest", "gemini-3.1-flash-lite", "gemini-2.5-flash"]
+
+
+@retry(wait=wait_exponential(multiplier=1, min=1, max=5), stop=stop_after_attempt(2), reraise=True)
 def embed_query(text: str) -> list[float]:
     """Generates an embedding vector for a user's chat query."""
     result = client.models.embed_content(
@@ -73,10 +76,11 @@ def build_rag_context(article_rows: Sequence[tuple[Content, str | None]]) -> str
     return "\n---\n".join(context_parts)
 
 
-@retry(wait=wait_exponential(multiplier=1, min=10, max=60), stop=stop_after_attempt(3), reraise=True)
+@retry(wait=wait_exponential(multiplier=1, min=1, max=5), stop=stop_after_attempt(2), reraise=True)
 def generate_rag_response(query: str, article_rows: Sequence[tuple[Content, str | None]]) -> dict:
     """
     Generates a grounded answer to the user's query using retrieved article context.
+    Attempts primary model first, falling back to alternatives if rate limits or errors occur.
     Returns { "answer": str, "sources": list[dict] }.
     """
     if not article_rows:
@@ -105,10 +109,27 @@ User's Question: {query}
 
 Answer:"""
 
-    response = client.models.generate_content(
-        model=clean_model,
-        contents=prompt,
-    )
+    # Try primary model first, then fallbacks if rate limits (429) or transient server errors (503) occur
+    models_to_try = [clean_model] + [m for m in FALLBACK_MODELS if m != clean_model]
+    response = None
+    last_error = None
+
+    for model_name in models_to_try:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+            )
+            if response and response.text:
+                break
+        except Exception as e:
+            logger.warning(f"RAG generation failed with model '{model_name}': {e}. Attempting fallback...")
+            last_error = e
+
+    if not response or not response.text:
+        if last_error:
+            raise last_error
+        raise RuntimeError("Failed to generate response from all available models.")
     
     # Build source references
     sources = []

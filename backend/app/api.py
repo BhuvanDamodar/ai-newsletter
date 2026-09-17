@@ -384,6 +384,12 @@ def chat_with_news(request: ChatRequest):
         return result
     except Exception as e:
         logger.error(f"Chat endpoint error: {e}")
+        err_str = str(e).lower()
+        if "429" in err_str or "resource_exhausted" in err_str or "quota" in err_str:
+            raise HTTPException(
+                status_code=429,
+                detail="Gemini API query limit reached. Please wait a moment before trying again.",
+            )
         raise HTTPException(status_code=500, detail="Failed to generate a response. Please try again.")
 
 

@@ -55,9 +55,10 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+}
 
-  /* Markdown prose styles for chat assistant messages */
-  .prose-chat p {
+/* Markdown prose styles for chat assistant messages */
+.prose-chat p {
     margin-bottom: 0.75em;
   }
   .prose-chat p:last-child {
@@ -118,4 +119,3 @@
     margin: 0.75em 0;
     color: var(--color-text-muted);
   }
-}
